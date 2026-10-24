@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<script>
+  // Saved look (palette, layout, dark mode) applied before first paint (no flash).
+  (function () { try { var h = document.documentElement, u = JSON.parse(localStorage.getItem("rekev-ui") || "{}"), pal = u.pal === "greek" ? "navygold" : (u.pal || "classic");
+    h.setAttribute("data-pal", pal); if (u.layout === "gm") h.classList.add("gm"); if (localStorage.getItem("rekev-hdr") === "1") h.classList.add("hdr-min");
+    if (localStorage.getItem("rekev-theme") === "dark") h.classList.add("dark"); } catch (e) {} })();
+</script>
+<script>
+  // On-device debug console (from rek-tracker): captures console output and errors so problems can be read on a phone.
+  (function () {
+    const logs = [];
+    const str = a => a instanceof Error ? a.name + ": " + a.message : (typeof a === "object" ? (function () { try { return JSON.stringify(a); } catch (e) { return String(a); } })() : String(a));
+    const draw = () => { const p = document.getElementById("debugPanel"); if (p) p.textContent = logs.slice(-300).join("\n"); };
+    const push = (k, args) => { logs.push("[" + new Date().toLocaleTimeString() + "] [" + k + "] " + Array.from(args).map(str).join(" ")); draw(); };
+    ["log", "warn", "error"].forEach(k => { const o = console[k]; console[k] = function () { push(k, arguments); o.apply(console, arguments); }; });
+    window.addEventListener("error", e => push("window.onerror", [(e.message || "Script error") + " @ " + (e.filename || "?") + ":" + (e.lineno || "?")]));
+    window.addEventListener("unhandledrejection", e => push("unhandledrejection", [e.reason]));
+    window.addEventListener("DOMContentLoaded", () => {
+      const b = document.getElementById("debugToggleBtn"), p = document.getElementById("debugPanel");
+      if (b && p) b.addEventListener("click", () => { p.style.display = p.style.display === "none" ? "block" : "none"; draw(); });
+    });
+  })();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Roh El Kheer · Evaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Cinzel:wght@600&family=Pixelify+Sans:wght@400;600&family=Press+Start+2P&display=swap">
+<style>
+  :root { --bg:#F8FAFC; --card:#fff; --ink:#0F172A; --mut:#64748B; --line:#E2E8F0; --soft:#F1F5F9; --navy:#0F172A; --navy2:#1E293B; --acc:#1E3A8A; --ok:#16A34A; --bad:#DC2626; --warn:#CA8A04; }
+  html.dark { --bg:#0B1220; --card:#111B2E; --ink:#E6ECF5; --mut:#94A3B8; --line:#22314A; --soft:#16233A; --acc:#93B4FF; --btn:#2B4C8C; --on-btn:#fff; --on-acc:#0B1220; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: Inter, Cairo, -apple-system, "Segoe UI", Tahoma, Roboto, Arial, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; font-size: 14px; }
+  h1, h2, h3, .disp { font-family: Newsreader, Cairo, Georgia, serif; margin: 0; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; touch-action: manipulation; }
+  .hidden { display: none !important; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+  /* gate */
+  #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--navy); }
+  .gate-card { background: var(--card); border-radius: 22px; padding: 28px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .gate-card h1 { font-size: 28px; font-style: italic; }
+  .field { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; background: var(--card); }
+  .field:focus-visible, button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+  .btn { border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; background: var(--btn, var(--navy)); color: var(--on-btn, #fff); min-height: 42px; }
+  .btn:hover { opacity: .92; } .btn:disabled { opacity: .5; cursor: wait; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.danger { background: var(--bad); color: #fff; }
+  .btn.sm { padding: 6px 12px; min-height: 34px; font-size: 13px; }
+  .link { background: none; border: 0; color: var(--acc); font-weight: 600; font-size: 13px; padding: 4px; }
+  .link.red { color: var(--bad); }
+  .sync { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .sync.online { background: rgba(34,197,94,.16); color: #4ADE80; } .sync.offline { background: rgba(239,68,68,.18); color: #FCA5A5; }
+  .on-light.sync.online { background: #DCFCE7; color: #15803D; } .on-light.sync.offline { background: #FEE2E2; color: #B91C1C; }
+  /* header + tabs */
+  header.top { background: var(--navy); color: #fff; padding: 12px 0 10px; }
+  .top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .brand { font-family: Newsreader, Georgia, serif; font-style: italic; font-size: 22px; }
+  .who { font-size: 12px; color: rgba(226,232,240,.75); }
+  .icon-btn { background: rgba(255,255,255,.08); border: 0; color: #fff; border-radius: 999px; width: 38px; height: 38px; }
+  .tabs { margin-top: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; padding: 4px; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { border: 0; background: transparent; color: rgba(226,232,240,.7); font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 999px; white-space: nowrap; min-height: 40px; }
+  .tab.on { background: #fff; color: var(--navy); } .tab:hover:not(.on) { color: #fff; background: rgba(255,255,255,.08); }
+  /* content */
+  main { padding: 20px 0 90px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .row h2 { font-size: 22px; } h3 { font-size: 17px; margin-bottom: 8px; }
+  .meta { color: var(--mut); font-size: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 24px; font-family: Newsreader, serif; } .kpi span { font-size: 12px; color: var(--mut); }
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--mut); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--soft); color: var(--mut); white-space: nowrap; }
+  .pos { color: var(--ok); font-weight: 700; } .neg { color: var(--bad); font-weight: 700; }
+  .split { display: grid; grid-template-columns: 250px 1fr; gap: 16px; } @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .list-item { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 9px 12px; margin-bottom: 6px; }
+  .list-item.on { border-color: var(--acc); background: var(--soft); }
+  .cellin { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 5px 7px; font-size: 13px; max-width: 150px; }
+  .cellin[disabled] { background: transparent; border-color: transparent; opacity: .85; }
+  .empty { text-align: center; color: var(--mut); padding: 28px; }
+  #banner > div { padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; font-size: 13px; }
+  .b-warn { background: #FEF9C3; color: #854D0E; } .b-err { background: #FEE2E2; color: #991B1B; }
+  /* modal */
+  #modal { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; overflow-y: auto; }
+  .m-card { background: var(--card); border-radius: 18px; padding: 20px; width: 100%; max-width: 440px; max-height: 92vh; overflow-y: auto; }
+  .m-card label { display: block; font-size: 12px; font-weight: 600; color: var(--mut); margin: 10px 0 4px; }
+  .m-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  #toast { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; z-index: 70; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+  #debugToggleBtn { position: fixed; right: 12px; bottom: 12px; z-index: 60; background: #334155; color: #fff; border: 0; border-radius: 999px; padding: 6px 12px; font-size: 11px; opacity: .8; }
+  #debugPanel { display: none; position: fixed; left: 8px; right: 8px; bottom: 50px; max-height: 40vh; overflow: auto; background: #0F172A; color: #A7F3D0; font: 11px/1.4 monospace; padding: 10px; border-radius: 12px; z-index: 60; white-space: pre-wrap; }
+  /* sheet overlay (printable) */
+  #sheetOverlay { position: fixed; inset: 0; background: #CBD5E1; overflow: auto; z-index: 80; }
+  .sheet-bar { position: sticky; top: 0; z-index: 2; background: var(--navy); padding: 10px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .sheet-bar .t { color: #fff; font-weight: 600; margin-right: auto; }
+  #sheetPages { padding: 18px 10px 40px; }
+  /* ============ Palettes (independent of layout) ============ */
+  :root { --gold: #C9A227; --px: 3px; }
+  html[data-pal="olive"] { --bg:#F3F0E6; --card:#FBF9F2; --ink:#1B2A21; --mut:#5E6D62; --line:#D9D4C2; --soft:#EAE6D6; --navy:#1E4A38; --navy2:#2A5E49; --acc:#2D6A4F; --ok:#2F8F4E; --bad:#B3392F; --warn:#9A6B00; }
+  html[data-pal="olive"].dark { --bg:#0F1913; --card:#16241C; --ink:#E6EEE5; --mut:#9AAFA0; --line:#2A3D31; --soft:#1D2E24; --navy:#0B2A1D; --navy2:#16382A; --acc:#6FCF97; --ok:#4ADE80; --bad:#F28B82; --warn:#E3B341; --btn:#6FCF97; --on-btn:#0C1A12; --on-acc:#0C1A12; --head:#E6EEE5; }
+  html[data-pal="olive"] .kpi { border-left: 4px solid var(--acc); }
+  html[data-pal="olive"] h2, html[data-pal="olive"] h3 { color: var(--head, var(--navy)); }
+  html[data-pal="navygold"] { --bg:#F4F5FA; --card:#FFFFFF; --ink:#0B1F44; --mut:#56658A; --line:#D5DBEA; --soft:#ECEFF7; --navy:#0B2559; --navy2:#13347A; --acc:#8A6A00; --ok:#1E7F4E; --bad:#B3261E; --warn:#8A6A00; }
+  html[data-pal="navygold"].dark { --bg:#0A1226; --card:#111C38; --ink:#E7ECF8; --mut:#9AA9CC; --line:#243357; --soft:#172447; --navy:#06102A; --navy2:#0F2050; --acc:#E3B83F; --ok:#4ADE80; --bad:#F87171; --warn:#E3B83F; --btn:#C9A227; --on-btn:#0A1226; --on-acc:#0A1226; --head:#E7ECF8; }
+  html[data-pal="navygold"] header.top { border-bottom: 2px solid var(--gold); }
+  html[data-pal="navygold"] .brand, html[data-pal="navygold"] .gate-card h1 { font-family: Cinzel, Newsreader, Georgia, serif; font-style: normal; letter-spacing: .05em; }
+  html[data-pal="navygold"] .gate-card { border-top: 6px solid var(--gold); }
+  html[data-pal="navygold"] .btn { border-bottom: 3px solid var(--gold); }
+  html[data-pal="navygold"] .tab.on { box-shadow: inset 0 -3px 0 var(--gold); }
+  html[data-pal="navygold"] .kpi { border-top: 3px solid var(--gold); }
+  html[data-pal="navygold"] h2, html[data-pal="navygold"] h3, html[data-pal="navygold"] th { color: var(--head, var(--navy)); }
+  html[data-pal="amber"] { --bg:#F4F3F0; --card:#FFFFFF; --ink:#1F2124; --mut:#6B6F76; --line:#DEDCD6; --soft:#EEECE6; --navy:#26282B; --navy2:#34373B; --acc:#B45309; --ok:#2F8F4E; --bad:#C0392B; --warn:#B45309; }
+  html[data-pal="amber"].dark { --bg:#17181A; --card:#212326; --ink:#ECEAE5; --mut:#A4A6AB; --line:#35383C; --soft:#2A2C30; --navy:#0F1012; --navy2:#2A2C30; --acc:#FBBF24; --ok:#4ADE80; --bad:#F87171; --warn:#FBBF24; --btn:#F59E0B; --on-btn:#1A1405; --on-acc:#1A1405; --head:#ECEAE5; }
+  html[data-pal="amber"] header.top { border-bottom: 3px solid #F59E0B; }
+  html[data-pal="amber"] .gate-card { border-top: 6px solid #F59E0B; }
+  html[data-pal="amber"] .btn:not(.ghost):not(.danger) { border-bottom: 3px solid #F59E0B; }
+  html[data-pal="amber"] .tab.on { box-shadow: inset 0 -3px 0 #F59E0B; }
+  html[data-pal="amber"] .kpi { border-top: 3px solid #F59E0B; }
+  html[data-pal="amber"] h2, html[data-pal="amber"] h3 { color: var(--head, var(--navy)); }
+  /* ============ Customize dialog ============ */
+  .cust-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); margin: 16px 0 6px; font-weight: 700; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .segb { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 12px; border-radius: 10px; font-weight: 600; min-height: 40px; }
+  .segb.on { background: var(--btn, var(--navy)); color: var(--on-btn, #fff); border-color: var(--btn, var(--navy)); }
+  .pal-grid { display: grid; gap: 8px; }
+  .palc { display: flex; align-items: center; gap: 12px; text-align: left; border: 2px solid var(--line); background: var(--card); padding: 10px; border-radius: 12px; width: 100%; color: var(--ink); }
+  .palc.on { border-color: var(--acc); background: var(--soft); }
+  .palc b { display: block; } .palc span.meta { display: block; }
+  .chips { display: flex; flex: none; } .chips i { width: 22px; height: 22px; display: block; border: 1px solid rgba(0,0,0,.25); }
+  /* page titles sit a little lower, away from the header bar */
+  main.wrap { padding: 36px 16px 90px; }   /* .wrap used to override main's own padding, so titles touched the header */
+  /* narrow screens: header controls wrap instead of overflowing; grids may shrink below their widest table */
+  header.top .top-row > div:last-child { flex-wrap: wrap; justify-content: flex-end; }
+  header.top .btn, .xp-lv { white-space: nowrap; }
+  @media (max-width: 800px) { .split { grid-template-columns: minmax(0, 1fr); } }
+  .split > * { min-width: 0; }
+  /* Game-mode toggle (visible in both looks) - same button as Thinksomnia */
+  .game-toggle { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 15px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; font-weight: 600; font-size: .85rem; white-space: nowrap; transition: background .2s, transform .15s; }
+  .game-toggle:hover { background: rgba(255,255,255,.16); } .game-toggle:active { transform: scale(.95); }
+  .game-toggle svg { width: 20px; height: 20px; }
+  .game-toggle[aria-pressed="true"] { background: var(--acc); color: var(--on-acc, #fff); border-color: transparent; }
+  .xp-hud { display: none; }
+  @media (max-width: 640px) { .game-toggle span { display: none; } .game-toggle { padding: 0 10px; } }
+  /* ============ GAME MODE SKIN (ported from Thinksomnia) - only touches layout; colours come from the active palette ============ */
+  html.gm { --f-disp: 'Press Start 2P', 'Courier New', monospace; --f-body: 'Pixelify Sans', Cairo, 'Courier New', monospace;
+    --outline: var(--ink); --pix: color-mix(in srgb, var(--ink) 22%, transparent); --accent-deep: color-mix(in srgb, var(--acc) 58%, #000); }
+  html.gm.dark { --outline: color-mix(in srgb, var(--acc) 45%, var(--line)); --pix: rgba(0,0,0,.4); }
+  html.gm *, html.gm *::before, html.gm *::after { border-radius: 0 !important; }
+  html.gm body { font-family: var(--f-body); font-size: 16px; line-height: 1.4; -webkit-font-smoothing: none;
+    background-image: linear-gradient(color-mix(in srgb, var(--acc) 7%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in srgb, var(--acc) 7%, transparent) 2px, transparent 2px); background-size: 32px 32px; }
+  html.gm main.wrap { padding-top: 44px; }
+  html.gm ::-webkit-scrollbar { width: 14px; height: 14px; } html.gm ::-webkit-scrollbar-track { background: var(--soft); }
+  html.gm ::-webkit-scrollbar-thumb { background: var(--acc); border: 3px solid var(--soft); }
+  html.gm h1, html.gm h2, html.gm h3, html.gm .disp, html.gm .kpi b { font-family: var(--f-disp); font-style: normal; font-weight: 400; line-height: 1.6; }
+  html.gm .card, html.gm .kpi, html.gm .gate-card, html.gm .list-item { background: var(--card); border: 3px solid var(--outline); box-shadow: 4px 4px 0 0 var(--pix); }
+  html.gm .list-item { transition: none; } html.gm .list-item:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 0 var(--pix); border-color: var(--acc); }
+  html.gm .list-item.on { border-color: var(--acc); }
+  html.gm header.top { border-bottom: 4px solid var(--acc); padding: 14px 0 12px; }
+  html.gm .brand { font-family: var(--f-disp); font-style: normal; font-size: .95rem; font-weight: 400; text-shadow: 3px 3px 0 var(--accent-deep); letter-spacing: 0; }
+  html.gm .who { font-size: .95rem; }
+  html.gm .tabs { border-radius: 0; background: transparent; border: 0; padding: 0; gap: 4px; }
+  html.gm .tab { font-family: var(--f-body); font-weight: 700; font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; padding: 8px 12px; color: rgba(255,255,255,.7); }
+  html.gm .tab:hover:not(.on) { background: rgba(255,255,255,.12); }
+  html.gm .tab.on { background: var(--acc); color: var(--on-acc, #fff); box-shadow: inset 0 -4px 0 rgba(0,0,0,.28); }
+  html.gm .icon-btn { border: 2px solid rgba(255,255,255,.4); box-shadow: 0 3px 0 rgba(0,0,0,.45); transition: none; }
+  html.gm .icon-btn:active { transform: translateY(3px); box-shadow: none; }
+  html.gm .game-toggle { font-family: var(--f-body); font-weight: 700; font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; border: 2px solid rgba(255,255,255,.4); box-shadow: 0 3px 0 rgba(0,0,0,.45); transition: none; }
+  html.gm .game-toggle:active { transform: translateY(3px); box-shadow: none; }
+  html.gm .game-toggle[aria-pressed="true"] { border-color: rgba(0,0,0,.35); box-shadow: 0 3px 0 var(--accent-deep); }
+  html.gm .xp-hud { display: flex; align-items: center; gap: 8px; margin-right: 2px; }
+  html.gm .xp-lv { font-family: var(--f-disp); font-size: .55rem; background: var(--acc); color: var(--on-acc, #fff); padding: 6px 6px 5px; border: 2px solid rgba(0,0,0,.35); box-shadow: 0 3px 0 rgba(0,0,0,.4); }
+  html.gm .xp-bar { width: 88px; height: 14px; border: 2px solid rgba(255,255,255,.55); background: rgba(0,0,0,.35); display: block; }
+  html.gm .xp-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--acc) 0 6px, var(--accent-deep) 6px 8px); }
+  html.gm .xp-num { font-size: .85rem; font-weight: 600; color: #fff; opacity: .85; white-space: nowrap; }
+  @media (max-width: 900px) { html.gm .xp-num { display: none; } } @media (max-width: 640px) { html.gm .xp-bar { width: 52px; } }
+  html.gm .row h2 { font-size: 1.05rem; text-shadow: 2px 2px 0 color-mix(in srgb, var(--acc) 30%, transparent); }
+  html.gm h3 { font-size: .8rem; }
+  html.gm .gate-card h1 { font-size: 1.1rem; }
+  html.gm .kpi b { font-size: 1.15rem; }
+  html.gm .btn { font-family: var(--f-body); font-weight: 700; font-size: .98rem; text-transform: uppercase; letter-spacing: .05em; padding: 9px 16px; border: 3px solid var(--accent-deep); background: var(--acc); color: var(--on-acc, #fff); box-shadow: 0 4px 0 var(--accent-deep); transition: none; transform: translateY(0); }
+  html.gm .btn.sm { padding: 6px 12px; font-size: .88rem; }
+  html.gm .btn:hover { opacity: 1; filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 5px 0 var(--accent-deep); }
+  html.gm .btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--accent-deep); }
+  html.gm .btn.ghost { background: var(--card); color: var(--ink); border-color: var(--outline); box-shadow: 0 4px 0 var(--outline); }
+  html.gm .btn.ghost:hover { box-shadow: 0 5px 0 var(--outline); } html.gm .btn.ghost:active { box-shadow: 0 0 0 var(--outline); }
+  html.gm header.top .btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); box-shadow: 0 3px 0 rgba(0,0,0,.45); }
+  html.gm .btn.danger { background: var(--bad); border-color: var(--bad); box-shadow: 0 3px 0 color-mix(in srgb, var(--bad) 60%, #000); }
+  html.gm .link { font-family: var(--f-body); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  html.gm .field, html.gm .cellin { border: 3px solid var(--outline); background: var(--card); }
+  html.gm .field { font-size: 1rem; }
+  html.gm .field:focus, html.gm .cellin:focus { outline: none; box-shadow: 0 0 0 3px var(--acc); }
+  html.gm th { font-family: var(--f-body); font-weight: 700; font-size: .85rem; letter-spacing: .06em; border-bottom: 3px solid var(--outline); }
+  html.gm .pill { border: 2px solid var(--outline); font-family: var(--f-body); font-weight: 600; font-size: .85rem; }
+  html.gm .sync { font-family: var(--f-body); border: 2px solid rgba(255,255,255,.35); }
+  html.gm #modal { background: rgba(5,8,28,.72); }
+  html.gm .m-card { border: 4px solid var(--outline); background: var(--card); box-shadow: 8px 8px 0 0 rgba(0,0,0,.45); }
+  html.gm .m-card label { font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; }
+  html.gm #toast { font-family: var(--f-disp); font-size: .62rem; line-height: 1.6; border: 3px solid var(--acc); box-shadow: 4px 4px 0 rgba(0,0,0,.45); }
+  html.gm .segb { font-family: var(--f-body); font-weight: 700; text-transform: uppercase; border: 3px solid var(--outline); box-shadow: 0 3px 0 var(--outline); }
+  html.gm .segb.on { background: var(--acc); border-color: var(--accent-deep); box-shadow: 0 3px 0 var(--accent-deep); }
+  html.gm .palc { border: 3px solid var(--line); } html.gm .palc.on { border-color: var(--acc); box-shadow: 3px 3px 0 var(--pix); }
+  html.gm .kpi { transition: none; }
+  /* ============ Pixel tab icons (game mode) + small header toggle arrow ============ */
+  .pxi { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; margin-inline-end: 6px; image-rendering: pixelated; flex: none; }
+  .hdr-arrow { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; flex: none; }
+  .hdr-arrow:hover { background: rgba(255,255,255,.18); }
+  .hdr-arrow svg { width: 12px; height: 12px; transition: transform .2s; }
+  html.hdr-min #hdrTools { display: none; }
+  html.hdr-min .hdr-arrow svg { transform: rotate(180deg); }
+  html.gm .hdr-arrow { width: 28px; height: 28px; border: 2px solid rgba(255,255,255,.4); box-shadow: 0 3px 0 rgba(0,0,0,.45); }
+  html.gm .hdr-arrow svg { transition: none; }
+  html.gm .hdr-arrow:active { transform: translateY(3px); box-shadow: none; }
+</style>
+<style id="sheetCss"></style>
+</head>
+<body>
+<div id="gate">
+  <div class="gate-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>Roh El Kheer</h1><span id="loginSync" class="sync on-light offline">● Connecting…</span></div>
+    <p class="meta" style="margin:0 0 16px">Evaluation system · enter your Passkey ID to continue.</p>
+    <form id="authForm">
+      <input id="authInput" class="field" type="text" placeholder="Passkey ID" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <p id="authError" class="hidden" style="color:var(--bad);font-size:13px;margin:8px 0 0"></p>
+      <button class="btn" type="submit" style="width:100%;margin-top:12px">Continue</button>
+    </form>
+    <p class="meta" style="margin-top:16px">First time here? Ask an admin for your Passkey ID. No admins set up yet? Use <b>TRYME1</b> to bootstrap access.</p>
+    <p style="margin:10px 0 0"><button class="link" id="gateCustom" type="button">Customize look</button></p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header class="top"><div class="wrap">
+    <div class="top-row">
+      <div><div class="brand">Roh El Kheer</div><div class="who" id="who"></div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="xp-hud" id="xpHud" title="XP is earned when a task or attendance evaluation is completed, for the members you can see. A new level every 50 XP."></div>
+        <div id="hdrTools" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <span id="syncPill" class="sync offline">● Connecting…</span>
+        <button class="game-toggle" id="gameModeBtn" aria-pressed="false" title="Switch between the classic look and the pixel game look"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 10.5v4M5 12.5h4"/><circle cx="16" cy="11.5" r=".8"/><circle cx="18.5" cy="13.5" r=".8"/></svg><span>Game mode</span></button>
+                <button class="icon-btn" id="customBtn" title="Customize palette &amp; layout" aria-label="Customize palette and layout"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.3-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg></button>
+        <button class="icon-btn" id="themeBtn" title="Dark / light" aria-label="Toggle theme">◐</button>
+        <button class="btn sm ghost" id="switchBtn" style="color:#fff;border-color:rgba(255,255,255,.25)">Switch ID</button></div>
+        <button type="button" class="hdr-arrow" id="hdrArrow" aria-expanded="true" aria-label="Hide or show header buttons" title="Hide buttons"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </div></header>
+  <main class="wrap"><div id="banner"></div><div id="view"></div></main>
+</div>
+
+<div id="modal" class="hidden"></div>
+<div id="sheetOverlay" class="hidden"><div class="sheet-bar"><span class="t" id="sheetTitle">Sheet</span>
+  <button class="btn sm" id="shGoogle">Create Google Sheet</button><button class="btn sm ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" id="shXlsx">Download Excel</button><button class="btn sm ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" id="shPrint">Print / PDF</button><button class="btn sm ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" id="shClose">Close</button></div>
+  <div id="sheetPages"></div></div>
+<div id="toast" class="hidden"></div>
+<button id="debugToggleBtn">Debug</button><pre id="debugPanel"></pre>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js" onerror="console.error('firebase-app-compat.js FAILED TO LOAD (network/CDN blocked)')"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js" onerror="console.error('firebase-database-compat.js FAILED TO LOAD (network/CDN blocked)')"></script>
+<script>
+(function () {
+"use strict";
+// ================================================================
+// Roh El Kheer Evaluation — Firebase Realtime Database edition
+// All data lives under /eval so it never collides with other apps in the same Firebase project (e.g. rek-tracker).
+// ================================================================
+const firebaseConfig = {
+  // !! This is the config of the "rek-tracker" Firebase project. Before using real member data, create YOUR OWN Firebase project,
+  // paste its web config here and lock its database rules - otherwise your data lives in someone else's project.
+  // Same project config as rek-tracker. To use a separate Firebase project, replace this object
+  // (Firebase Console -> Project settings -> General -> Your apps -> Web app -> Config).
+  apiKey: "AIzaSyBe4OUgz68M_JiYPGUmFygp16IjXdqRWss",
+  authDomain: "rek-tracker.firebaseapp.com",
+  databaseURL: "https://rek-tracker-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "rek-tracker",
+  storageBucket: "rek-tracker.firebasestorage.app",
+  messagingSenderId: "158885570410",
+  appId: "1:158885570410:web:d85c1dab95e8ec6dc76713"
+};
+const ROOT = "eval";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+const fmt = n => (n === "" || n == null || typeof n === "string" || isNaN(n)) ? "\u2013" : String(Math.round(n * 100) / 100);
+const sgn = n => (n === "" || n == null || isNaN(n)) ? "\u2013" : (n > 0 ? "+" : "") + fmt(n);
+const sum = a => a.reduce((x, y) => x + num(y), 0);
+const mean = a => a.length ? sum(a) / a.length : 0;
+const std = a => { if (a.length < 2) return 0; const m = mean(a); return Math.sqrt(mean(a.map(x => (num(x) - m) ** 2))); };
+const arr = o => Object.keys(o || {}).map(id => Object.assign({}, o[id], { id: id }));
+const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const dayNum = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5) : NaN; };
+
+// ---------------- Firebase ----------------
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const R = p => db.ref(p ? ROOT + "/" + p : ROOT);
+const COLL = ["passkeys", "assignments", "members", "events", "tasks", "taskRecords", "attRecords", "bonuses", "decisions", "rules", "settings", "archives"];
+let LAST_USER = null;   // who performed the action even if a write finishes after they were signed out (e.g. TRYME1 switching itself off)
+const S = { user: null, tab: "team", loaded: {}, audit: {}, sel: { comm: "", task: "", event: "", sheetKind: "committee", sheetComm: "", sheetTerm: "current" } };
+COLL.forEach(k => { S[k] = {}; });
+
+function setSync(text, kind) {
+  [["#syncPill", ""], ["#loginSync", " on-light"]].forEach(([sel, extra]) => { const el = $(sel); if (el) { el.textContent = text; el.className = "sync" + extra + " " + kind; } });
+}
+db.ref(".info/connected").on("value", s => s.val() === true ? setSync("\u25CF Synced", "online") : setSync("\u25CF Offline \u2014 changes sync when reconnected", "offline"), e => { setSync("\u25CF Connection error", "offline"); showSyncError(e); });
+function showSyncError(err) {
+  console.error("Firebase sync error:", err);
+  const b = $("#banner"); if (!b) return;
+  b.innerHTML = '<div class="b-err">Sync error: ' + esc(err && err.message ? err.message : err) + " \u2014 check your connection and Firebase security rules.</div>";
+  clearTimeout(showSyncError._t); showSyncError._t = setTimeout(() => renderBanner(), 6000);
+}
+window.addEventListener("unhandledrejection", ev => { if (ev && ev.reason) { showSyncError(ev.reason); ev.preventDefault(); } });
+let toastT; function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.remove("hidden"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add("hidden"), 2600); }
+const W = p => Promise.resolve(p).catch(showSyncError);   // every write goes through here so permission/network errors surface
+
+COLL.forEach(k => R(k).on("value", s => { S[k] = s.val() || {}; S.loaded[k] = true; onData(k); }, showSyncError));
+R("audit").limitToLast(150).on("value", s => { S.audit = s.val() || {}; if (S.tab === "access") scheduleRender(); }, showSyncError);
+function seedIfEmpty() {   // same bootstrap as rek-tracker: first run creates TRYME1 admin
+  R("passkeys").once("value").then(s => { if (s.exists()) return; return R("passkeys/TRYME1").set({ name: "Admin", role: "admin" }); }).catch(showSyncError);
+}
+
+// ---------------- Rules (defaults live in code, overrides in /eval/rules) ----------------
+const DEF_TASK = { doneOnTime: 1, doneLateExcused: 1, doneLateNoExcuse: 0, notDoneExcused: 0, notDoneNoExcuse: -1 };
+// order: attended, late, absent, absent-excused. Owner rules: excused absence = 0; late on campus = 0; out+no response: attended 1 / absent -3.
+const DEF_MATRIX = { "on|coming": [2, 0, -2, 0], "on|notcoming": [2, 0, 0, 0], "on|none": [0, 0, -2, 0], "out|coming": [3, 1, -3, 0], "out|notcoming": [3, 0, 0, 0], "out|none": [1, -1, -3, 0] };
+const OUT_KEYS = ["attended", "late", "absent", "excused"];
+const DEF_COMMITTEES = ["HR", "PR", "OC", "MIM"];
+const MEMBER_STATUS = ["Active", "Frozen", "Graduated", "Inactive"];
+const isActive = m => ((m && m.status) || "Active") === "Active";   // Frozen / Graduated / Inactive are kept on record but never scored
+function rules(src) {
+  const r = (src || S).rules || {}, task = Object.assign({}, DEF_TASK), matrix = {};
+  Object.keys(DEF_TASK).forEach(k => { if (r.task && r.task[k] !== "" && r.task[k] != null && isFinite(Number(r.task[k]))) task[k] = Number(r.task[k]); });
+  Object.keys(DEF_MATRIX).forEach(k => { matrix[k] = DEF_MATRIX[k].map((v, i) => { const o = r.matrix && r.matrix[k] && r.matrix[k][OUT_KEYS[i]]; return (o === "" || o == null || !isFinite(Number(o))) ? v : Number(o); }); });
+  const p = Number(r.ediPenalty), pos = (v, d) => (v === "" || v == null || !isFinite(Number(v)) || Number(v) < 0) ? d : Number(v);
+  return { bonusExplainAbove: pos(r.bonusExplainAbove, 5), maxAdjust: pos(r.maxAdjust, 20), memberCap: pos(r.memberCap, 2), workLine: pos(r.workLine, 0.5), commLine: pos(r.commLine, 60), carriedLine: pos(r.carriedLine, 50), task: task, matrix: matrix, attMin: r.attMin == null || r.attMin === "" ? -3 : num(r.attMin), attMax: r.attMax == null || r.attMax === "" ? 3 : num(r.attMax),
+    ediPenalty: (r.ediPenalty === "" || r.ediPenalty == null || !isFinite(p)) ? 0.5 : Math.max(0, Math.min(1, p)) };
+}
+function committees() { const l = String((S.settings || {}).committees || "").split(",").map(x => x.trim()).filter(Boolean); return l.length ? l : DEF_COMMITTEES; }
+
+// ---------------- Scoring (pure) ----------------
+function appliesTo(scope, m) { return !scope || scope === "ALL" || scope === m.committee; }
+const attStatus = rec => (rec && (rec.status || (rec.attended ? "attended" : ""))) || "";
+const STAT_CSS = { "Working": "#DCFCE7;color:#166534", "Slipping": "#FEF9C3;color:#854D0E", "Not working": "#FEE2E2;color:#991B1B", "Carried by a few": "#FFEDD5;color:#9A3412", "No data": "#F1F5F9;color:#64748B" };
+const statusPill = l => '<span class="pill" style="background:' + (STAT_CSS[l] || STAT_CSS["No data"]) + '">' + esc(l) + "</span>";
+const taskStatus = rec => (rec && (rec.status || (rec.doneAt ? "done" : ""))) || "";
+const hideQC = () => !!S.user && S.user.role === "hr";   // HR never sees the quality check
+const qcCols = a => hideQC() ? a.slice(0, -1) : a;
+const ymdOf = ts => { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+/** Conflict check for Heads: "done on time" typed in AFTER the deadline (server time), or a done date in the future. "" = no conflict / already verified. */
+function taskFlag(rec, task) {
+  rec = rec || {}; if (taskStatus(rec) !== "done" || !rec.doneAt || rec.flagOk) return "";
+  const dl = dayNum(task.deadline), d = dayNum(rec.doneAt); if (!isFinite(dl) || !isFinite(d)) return "";
+  if (d > dayNum(todayStr())) return "Done date is in the future";
+  if (d <= dl && rec.markedAt && dayNum(ymdOf(rec.markedAt)) > dl) return "Entered as on time after the deadline (entered " + ymdOf(rec.markedAt) + ", by " + (rec.markedBy || "?") + ")" + (rec.excuseNote ? "" : " \u2014 no proof note");
+  return "";
+}
+function scoreTask(rec, task, rl, todayN) {
+  rec = rec || {};
+  const done = taskStatus(rec) === "done"; if (done && !rec.doneAt) return { outcome: "Enter the date", score: "" };
+  const dl = dayNum(task.deadline), late = done && isFinite(dl) && dayNum(rec.doneAt) > dl, ex = rec.excuse === "valid";   // "Very late" excuse counts as none
+  if (!done && rec.status !== "notdone" && (!isFinite(dl) || todayN <= dl)) return { outcome: "Pending", score: "" };   // an explicit "Not done" is a finished answer, scored at once whatever the deadline
+  let o, k;
+  if (done && !late) { o = "Done - On Time"; k = "doneOnTime"; }
+  else if (done) { if (ex) { o = "Done - Late (Excused)"; k = "doneLateExcused"; } else { o = "Done - Late"; k = "doneLateNoExcuse"; } }
+  else if (ex) { o = "Not Done (Excused)"; k = "notDoneExcused"; }
+  else { o = "Not Done (No Excuse)"; k = "notDoneNoExcuse"; }
+  const p = Number(rl.task[k]);
+  return { outcome: o, score: isFinite(p) ? p : "" };
+}
+function scoreAtt(rec, ev, rl, todayN) {
+  rec = rec || {};
+  const att = attStatus(rec) === "attended", late = att && !!rec.late, dn = dayNum(ev.date);
+  if (!att && rec.status !== "absent" && (!isFinite(dn) || dn >= todayN)) return { outcome: "Pending", score: "" };
+  const oi = att ? (late ? 1 : 0) : (rec.excuse === "valid" ? 3 : 2);
+  const row = rl.matrix[(ev.campus === "out" ? "out" : "on") + "|" + (rec.response || "none")];
+  if (!row) return { outcome: "Check Rules", score: "" };
+  return { outcome: ["Attended", "Attended - Late", "Absent", "Absent - Excused"][oi], score: Math.max(rl.attMin, Math.min(rl.attMax, row[oi])) };
+}
+/** Normalised Gini of non-negative values: 0 = equal, 1 = one person has everything. "" if undefined. */
+function giniNorm(a) {
+  const x = a.map(v => Math.max(0, num(v))), n = x.length, s = sum(x);
+  if (n < 2 || s <= 0) return "";
+  let d = 0; x.forEach(p => x.forEach(q => { d += Math.abs(p - q); }));
+  return d / (2 * s * (n - 1));
+}
+/** XP is earned only once an evaluation is COMPLETED: a task counts when it was marked done (or given a valid / very-late excuse), attendance when it was ticked, answered or excused.
+ *  Untouched items (even overdue ones) and bonuses earn nothing. */
+function taskEvaluated(rec) { return !!rec && ((taskStatus(rec) === "done" && !!rec.doneAt) || rec.status === "notdone" || rec.excuse === "valid" || rec.excuse === "verylate"); }
+function attEvaluated(rec) { return !!rec && (!!rec.attended || rec.status === "absent" || (!!rec.response && rec.response !== "none") || rec.excuse === "valid" || rec.excuse === "verylate"); }
+/** Everything the sheets and screens show. src defaults to live state; archives pass their own. */
+function compute(src) {
+  src = src || S;
+  const rl = rules(src), todayN = dayNum(todayStr()), pen = rl.ediPenalty;
+  const members = arr(src.members).filter(m => isActive(m));
+  const tasks = arr(src.tasks), events = arr(src.events), bonuses = arr(src.bonuses);
+  const memberRows = members.map(m => {
+    let tp = 0, ap = 0, done = 0, nT = 0, att = 0, nE = 0, ns = 0, xp = 0; const qs = [];
+    tasks.forEach(t => {
+      if (!appliesTo(t.scope, m)) return; nT++;
+      const rec = (src.taskRecords || {})[t.id + "~" + m.id], r = scoreTask(rec, t, rl, todayN);
+      if (r.score !== "") { tp += r.score; ns++; if (taskEvaluated(rec)) xp += r.score; }
+      if (rec && taskStatus(rec) === "done" && rec.doneAt) done++;
+      if (rec && num(rec.quality) > 0) qs.push(num(rec.quality));
+    });
+    events.forEach(e => {
+      if (!appliesTo(e.scope, m)) return; nE++;
+      const rec = (src.attRecords || {})[e.id + "~" + m.id], r = scoreAtt(rec, e, rl, todayN);
+      if (r.score !== "") { ap += r.score; ns++; if (attEvaluated(rec)) xp += r.score; }
+      if (rec && rec.attended) att++;
+    });
+    const bp = sum(bonuses.filter(b => b.memberId === m.id).map(b => b.points));
+    return { id: m.id, committee: m.committee, name: m.name, roleTitle: m.roleTitle || "", taskPts: tp, bonusPts: bp, attPts: ap, total: tp + bp + ap, xpPts: xp, scoredItems: ns, perItem: ns ? (tp + ap) / ns : "",
+      avgQuality: qs.length ? mean(qs) : "", tasksDone: done, tasksTotal: nT, attended: att, eventsTotal: nE, rank: 0 };
+  });
+  memberRows.forEach(r => { r.status = r.perItem === "" ? "No data" : r.perItem >= rl.workLine ? "Working" : r.perItem >= 0 ? "Slipping" : "Not working"; });
+  const comms = (src === S ? committees() : (src.committeeList || committees()));
+  comms.forEach(c => {
+    const g = memberRows.filter(r => r.committee === c).sort((a, b) => b.total - a.total);
+    g.forEach((r, i) => { r.rank = (i > 0 && r.total === g[i - 1].total) ? g[i - 1].rank : i + 1; });
+  });
+  const commRows = comms.map(c => {
+    const rs = memberRows.filter(r => r.committee === c), scd = rs.filter(r => r.perItem !== ""), vals = scd.map(r => Math.min(r.perItem, rl.memberCap)), avg = mean(vals), g = giniNorm(vals);   // per task/event, capped, bonus/minus excluded
+    const edi = scd.length < 2 ? (scd.length ? 1 : 0) : (g === "" ? 0 : 1 - g);       // 1 member: nothing to distribute; nobody scored: 0
+    const points = avg > 0 ? avg * (1 - pen * (1 - edi)) : avg;                       // a negative average is never "improved" by the factor
+    const wk = rs.filter(r => r.status === "Working").length, sc2 = rs.filter(r => r.status !== "No data").length, pct = sc2 ? wk / sc2 * 100 : 0, ai = scd.length ? mean(scd.map(r => r.perItem)) : "";
+    const lab = !sc2 ? "No data" : pct >= rl.commLine ? "Working" : (ai !== "" && ai >= rl.workLine && pct < rl.carriedLine) ? "Carried by a few" : "Not working";
+    return { committee: c, workingCount: wk, scoredCount: sc2, notWorking: sc2 - wk, workPct: pct, label: lab, avgItem: ai, activeMembers: rs.length, avgTask: mean(rs.map(r => r.taskPts)), avgBonus: mean(rs.map(r => r.bonusPts)), avgAtt: mean(rs.map(r => r.attPts)),
+      avgQuality: (function () { const q = rs.map(r => r.avgQuality).filter(v => v !== ""); return q.length ? mean(q) : ""; })(),
+      avg: avg, stdDev: std(vals), gini: g, edi: edi, ediPts: points - avg, points: points, share: 0 };
+  });
+  const total = sum(commRows.map(r => r.points)), pos = sum(commRows.map(r => Math.max(0, r.points)));
+  commRows.forEach(r => { r.share = pos > 0 ? Math.max(0, r.points) / pos : 0; });
+  const tw = memberRows.filter(r => r.status === "Working").length, ts = memberRows.filter(r => r.status !== "No data").length, tpct = ts ? tw / ts * 100 : 0;
+  return { memberRows: memberRows, commRows: commRows, team: { total: total, activeMembers: memberRows.length, committees: comms.length, workingCount: tw, scoredCount: ts, workPct: tpct, committeesWorking: commRows.filter(r => r.label === "Working").length, label: !ts ? "No data" : tpct >= rl.commLine ? "Working" : "Not working" }, penalty: pen };
+}
+
+// ---------------- Access model (same shape as rek-tracker: role defaults + per-passkey override) ----------------
+const PANELS = [["team", "Team"], ["committee", "Committee"], ["mygroup", "My Group"], ["assign", "Assignments"], ["tasks", "Tasks"], ["att", "Attendance"], ["members", "Members"], ["rules", "Rules"], ["sheets", "Sheets"], ["access", "Access"]];
+const ROLES = { admin: "Admin", hr: "HR", head: "Head", vicehead: "Vice Head", chairman: "Chairman", vicechair: "Vice Chairman", board: "Board" };
+const SCOPED = ["head", "vicehead"];
+const LEADERS = ["chairman", "vicechair"];   // all committees
+// Heads issue tasks and attendance events for their own committee and enter the quality check; HR does the checking (My Group).
+const HEAD_P = { committee: "write", tasks: "write", att: "write", rules: "read", sheets: "read" };
+const LEAD_P = { team: "write", committee: "write", assign: "read", tasks: "write", att: "write", members: "read", rules: "read", sheets: "read" };
+const ROLE_DEFAULTS = {
+  hr: { mygroup: "write", team: "read", committee: "read", tasks: "read", att: "read", members: "write", sheets: "read" },   // HR does not see the scoring rules
+  head: HEAD_P, vicehead: HEAD_P,
+  board: { team: "write", committee: "read", assign: "read", tasks: "read", att: "read", members: "read", rules: "read", sheets: "read" },
+  chairman: LEAD_P, vicechair: LEAD_P
+};
+function defaultPerms(role) { return Object.assign({}, ROLE_DEFAULTS[role] || {}); }
+function effPerms(u) {
+  if (!u) return {};
+  if (u.role === "admin") { const o = {}; PANELS.forEach(p => { o[p[0]] = "write"; }); return o; }
+  if (!u.permissions) return defaultPerms(u.role);
+  const p = Object.assign({}, u.permissions);   // a custom map REPLACES the defaults...
+  if (u.role === "hr" && !("mygroup" in p) && !("none" in p)) p.mygroup = "write";   // ...but maps saved before My Group existed (or without it) must not lock HR out of their own panel
+  return p;
+}
+const lvl = p => { if (!S.user) return "none"; if (p === "access" && S.user.role !== "admin") return "none"; return effPerms(S.user)[p] || "none"; };
+const canSee = p => lvl(p) !== "none";
+const canWrite = p => lvl(p) === "write";
+const isScoped = u => !!u && SCOPED.indexOf(u.role) >= 0 && !!u.committee;
+const myScope = () => { const u = S.user; if (!u || SCOPED.indexOf(u.role) < 0) return ""; if (!u.committee) return "__none__"; return u.committee === "HR" ? "" : u.committee; };   // Head/Vice Head: own committee; HR head: all; no committee set: nothing (fails closed)
+/** HR cohorts: /eval/assignments/{hrPasskeyId}/{memberId} = true. A member sits in at most one cohort. */
+const cohortHas = (uid, mid) => !!(S.assignments[uid] && S.assignments[uid][mid]);
+const firstPanel = () => canSee("mygroup") ? "mygroup" : (PANELS.map(p => p[0]).find(canSee) || "");
+const roleLabel = u => (ROLES[u.role] || u.role) + (isScoped(u) ? " \u00B7 " + u.committee : "");
+
+// ---------------- Auth (passkey login, same flow as rek-tracker) ----------------
+const AUTH_KEY = "rekev_passkey";
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+/** TRYME1 only works while no other admin passkey exists (otherwise everyone who knows the bootstrap code is an admin). */
+function bootstrapOpen() { return !Object.keys(S.passkeys).some(id => id !== "TRYME1" && (S.passkeys[id] || {}).role === "admin"); }
+function userFromRecord(id) {
+  const r = S.passkeys[id]; if (!r) return null;
+  if (id === "TRYME1" && !bootstrapOpen()) return null;
+  return { id: id, name: r.name || id, role: r.role, committee: r.committee || "", permissions: r.permissions || null };
+}
+function tryAuth(id) {
+  const u = userFromRecord(id); if (!u) return false;
+  S.user = u; LAST_USER = u; lsSet(AUTH_KEY, id);
+  $("#gate").classList.add("hidden"); $("#app").classList.remove("hidden");
+  const first = firstPanel();
+  if (!first) { signOut("This passkey has no panels enabled. Ask an admin to update your access."); return false; }
+  S.tab = first; renderAll(); return true;
+}
+function signOut(msg) {
+  S.user = null; lsDel(AUTH_KEY);
+  $("#app").classList.add("hidden"); $("#gate").classList.remove("hidden"); $("#authInput").value = "";
+  const e = $("#authError"); if (msg) { e.textContent = msg; e.classList.remove("hidden"); } else e.classList.add("hidden");
+}
+/** Called on every passkeys update: keeps the signed-in user's role/permissions live, signs out if the passkey was removed. */
+function refreshUser() {
+  if (!S.user) return;
+  const u = userFromRecord(S.user.id);
+  if (!u) { signOut(S.user.id === "TRYME1" ? "TRYME1 is now switched off. Sign in with your new admin passkey." : "Your passkey was removed or disabled."); return; }
+  S.user = u;
+  if (!canSee(S.tab)) S.tab = firstPanel() || S.tab;
+}
+$("#authForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const id = $("#authInput").value.trim(), btn = e.target.querySelector('button[type="submit"]'), err = $("#authError");
+  err.classList.add("hidden");
+  const fail = () => { err.textContent = (id === "TRYME1" && S.passkeys.TRYME1) ? "TRYME1 is disabled because an admin passkey exists." : "Passkey not recognized. Try again."; err.classList.remove("hidden"); };
+  if (S.passkeys[id] && S.loaded.passkeys) { if (!tryAuth(id)) fail(); return; }
+  btn.disabled = true; btn.textContent = "Checking\u2026";
+  const timeout = setTimeout(() => { btn.disabled = false; btn.textContent = "Continue"; showSyncError(new Error("Timed out waiting for the database. Check the connection status above.")); }, 8000);
+  R("passkeys").once("value").then(snap => {
+    clearTimeout(timeout); btn.disabled = false; btn.textContent = "Continue";
+    S.passkeys = snap.val() || {};
+    if (!S.passkeys[id] && id === "TRYME1" && !Object.keys(S.passkeys).length) { return R("passkeys/TRYME1").set({ name: "Admin", role: "admin" }).then(() => { S.passkeys.TRYME1 = { name: "Admin", role: "admin" }; if (!tryAuth(id)) fail(); }); }
+    if (!tryAuth(id)) fail();
+  }).catch(e2 => { clearTimeout(timeout); btn.disabled = false; btn.textContent = "Continue"; showSyncError(e2); });
+});
+$("#switchBtn").addEventListener("click", () => signOut());
+function attemptAutoLogin() {
+  const saved = lsGet(AUTH_KEY); if (!saved) return;
+  R("passkeys").once("value").then(s => { S.passkeys = s.val() || {}; tryAuth(saved); }).catch(showSyncError);
+}
+
+// ================================================================
+// UI helpers
+// ================================================================
+const OPT = {
+  excuse: [["none", "None"], ["valid", "Valid"], ["verylate", "Very late"]],
+  response: [["coming", "Coming"], ["notcoming", "Not coming"], ["none", "Didn't respond"]],
+  campus: [["on", "On campus"], ["out", "Out of campus"]]
+};
+const optLabel = (k, v) => ((OPT[k].find(o => o[0] === v) || [])[1]) || "";
+const sel = (opts, cur, attrs, dis) => '<select class="cellin" ' + attrs + (dis ? " disabled" : "") + ">" + opts.map(o => { const v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(v) + '"' + (String(cur) === String(v) ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select>";
+const nm = n => '<bdi dir="auto">' + esc(n) + "</bdi>";   // member names are often Arabic: let the browser pick direction per name
+const sc = v => v === "" || v == null ? '<span class="meta">pending</span>' : '<span class="' + (v > 0 ? "pos" : v < 0 ? "neg" : "") + '">' + sgn(v) + "</span>";
+const empty = t => '<div class="card empty">' + esc(t) + "</div>";
+const deny = () => { toast("You don't have permission to do that."); return Promise.resolve(); };
+const log = text => { const u = S.user || LAST_USER || { name: "unknown", id: "?" }; return W(R("audit").push({ ts: firebase.database.ServerValue.TIMESTAMP, by: u.name + " (" + u.id + ")", text: text })); };
+const visMembers = () => arr(S.members).filter(m => isActive(m) && (!myScope() || m.committee === myScope())).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const visScope = o => !myScope() || !o.scope || o.scope === "ALL" || o.scope === myScope();
+const mineOnly = o => !myScope() || o.scope === myScope();   // scoped users may only edit items of their own committee
+
+let rt; function scheduleRender() { clearTimeout(rt); rt = setTimeout(renderAll, 40); }
+function onData(k) { if (k === "passkeys") refreshUser(); if (S.user) scheduleRender(); }
+function renderTabs() {
+  $("#who").textContent = S.user.name + " \u00B7 " + roleLabel(S.user);
+  $("#tabs").innerHTML = PANELS.filter(p => canSee(p[0])).map(p => '<button class="tab' + (p[0] === S.tab ? " on" : "") + '" data-act="tab" data-t="' + p[0] + '">' + (gmIcons() ? pxIcon(TAB_ICON[p[0]]) : "") + p[1] + "</button>").join("");
+}
+function renderBanner() {
+  const b = $("#banner"); if (!b || !S.user) return;
+  b.innerHTML = (SCOPED.indexOf(S.user.role) >= 0 && !S.user.committee ? '<div class="b-err"><b>No committee is set on your passkey.</b> You cannot see or change anything until an admin assigns one in Access.</div>' : "") + (S.user.id === "TRYME1" ? '<div class="b-warn"><b>Bootstrap passkey in use.</b> Open Access, create your own Admin passkey, then sign in with it. TRYME1 switches itself off once another admin exists.</div>' : "");
+}
+const VIEWS = { team: () => vTeam(), committee: () => vCommittee(), mygroup: () => vMyGroup(), assign: () => vAssign(), tasks: () => vTasks(), att: () => vAtt(), members: () => vMembers(), rules: () => vRules(), sheets: () => vSheets(), access: () => vAccess() };
+function renderAll() { if (!S.user) return; renderTabs(); renderBanner(); updateXp(); render(); }
+function render() { const v = $("#view"); if (!canSee(S.tab)) { v.innerHTML = empty("No access to this panel."); return; } try { v.innerHTML = VIEWS[S.tab](); } catch (e) { console.error(e); v.innerHTML = empty("Something went wrong drawing this panel: " + e.message); } }
+
+function modal(title, fields, onSubmit, submitLabel) {
+  const m = $("#modal");
+  m.innerHTML = '<div class="m-card"><h3 class="disp" style="font-size:20px">' + esc(title) + '</h3><form id="mForm">' + fields.map(f => {
+    if (f.html) return f.html;
+    const id = "mf_" + f.n; let inp;
+    if (f.t === "select") inp = '<select class="field" id="' + id + '">' + f.o.map(o => { const v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(v) + '"' + (String(f.v) === String(v) ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("") + "</select>";
+    else if (f.t === "textarea") inp = '<textarea class="field" id="' + id + '" rows="3">' + esc(f.v || "") + "</textarea>";
+    else inp = '<input class="field" id="' + id + '" type="' + (f.t || "text") + '" value="' + esc(f.v == null ? "" : f.v) + '"' + (f.req ? " required" : "") + (f.dis ? " disabled" : "") + (f.t === "number" ? ' step="any"' : "") + " />";
+    return "<label for=\"" + id + '">' + esc(f.l) + "</label>" + inp;
+  }).join("") + '<div class="m-actions"><button type="button" class="btn ghost" data-act="mclose">Cancel</button><button type="submit" class="btn">' + esc(submitLabel || "Save") + "</button></div></form></div>";
+  m.classList.remove("hidden");
+  $("#mForm").addEventListener("submit", e => { e.preventDefault(); const o = {}; fields.forEach(f => { if (f.n) { const el = $("#mf_" + f.n); if (el) o[f.n] = el.value; } }); const r = onSubmit(o); if (r !== false) closeModal(); });
+  const first = m.querySelector("input,select,textarea"); if (first && !first.disabled) first.focus();
+}
+function closeModal() { const m = $("#modal"); m.classList.add("hidden"); m.innerHTML = ""; }
+const scopeOpts = () => myScope() === "__none__" ? [] : myScope() ? [myScope()] : ["ALL"].concat(committees());
+const commOpts = () => myScope() === "__none__" ? [] : myScope() ? [myScope()] : committees();
+
+// ================================================================
+// Write operations (client-enforced permissions: field lists + committee scope, mirroring the old server rules)
+// ================================================================
+const nn = v => v === "" || v == null ? null : v;
+const okDate = v => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v);
+function memberInScope(mid) { const m = S.members[mid]; return !!m && (!myScope() || m.committee === myScope()); }
+/** HR (and admin) do the checking: done/excuse for tasks, every attendance field. HR only for members in their own cohort. */
+function canMark(mid) { if (!S.user || !canWrite("mygroup") || !S.members[mid]) return false; return S.user.role === "admin" || (S.user.role === "hr" && cohortHas(S.user.id, mid)); }
+/** The quality check belongs to Heads / Vice Heads (own committee) and admin, entered on the Tasks tab. */
+function canQC(mid) { return !!S.user && canWrite("tasks") && memberInScope(mid) && (S.user.role === "admin" || SCOPED.indexOf(S.user.role) >= 0 || LEADERS.indexOf(S.user.role) >= 0); }
+function setTaskRec(taskId, memberId, patch) {
+  if (!S.tasks[taskId] || !S.members[memberId]) return deny();
+  const p = {};
+  Object.keys(patch).forEach(k => { if (k === "quality") { if (canQC(memberId)) p[k] = patch[k]; } else if (k === "flagOk") { if (canQC(memberId)) { p.flagOk = true; p.flagBy = S.user.name; } } else if (["status", "doneAt", "excuse", "excuseNote"].indexOf(k) >= 0) { if (canMark(memberId)) p[k] = patch[k]; } });
+  if (!Object.keys(p).length) return deny();
+  if ("doneAt" in p && !okDate(p.doneAt)) { toast("Date must look like yyyy-mm-dd."); return Promise.resolve(); }
+  if (p.doneAt && dayNum(p.doneAt) > dayNum(todayStr())) { toast("The done date can't be in the future."); return Promise.resolve(); }
+  if ("status" in p) { if (["done", "notdone", ""].indexOf(p.status) < 0) return Promise.resolve(); if (p.status !== "done") p.doneAt = ""; if (p.status === "") p.excuse = "none"; }
+  if ("status" in p || "doneAt" in p) { p.markedAt = firebase.database.ServerValue.TIMESTAMP; p.markedBy = S.user.name; p.flagOk = null; p.flagBy = null; }
+  if ("excuse" in p && !OPT.excuse.some(o => o[0] === p.excuse)) return Promise.resolve();
+  if ("quality" in p) {
+    if (p.quality !== "") { const n = Number(p.quality); if (!(n >= 1 && n <= 5 && n === Math.floor(n))) { toast("Quality check is a whole number from 1 to 5."); return Promise.resolve(); } p.quality = n; }
+    p.qcBy = S.user.name;
+  }
+  const out = { taskId: taskId, memberId: memberId }; Object.keys(p).forEach(k => { out[k] = nn(p[k]); });
+  return W(R("taskRecords/" + taskId + "~" + memberId).update(out)).then(() => log("Task record " + (S.tasks[taskId] || {}).title + " / " + (S.members[memberId] || {}).name + ": " + Object.keys(p).map(k => k + "=" + p[k]).join(", ")));
+}
+function setAttRec(eventId, memberId, patch) {
+  if (!S.events[eventId] || !canMark(memberId)) return deny();
+  const allowed = ["response", "status", "attended", "late", "excuse", "excuseNote"], p = {};
+  Object.keys(patch).forEach(k => { if (allowed.indexOf(k) >= 0) p[k] = patch[k]; });
+  if ("response" in p && !OPT.response.some(o => o[0] === p.response)) return Promise.resolve();
+  if ("status" in p) { if (["attended", "absent", ""].indexOf(p.status) < 0) return Promise.resolve(); p.attended = p.status === "attended"; if (p.status !== "attended") p.late = false; p.excuse = "none"; p.excuseNote = ""; }
+  if ("excuse" in p && !OPT.excuse.some(o => o[0] === p.excuse)) return Promise.resolve();
+  const out = { eventId: eventId, memberId: memberId }; Object.keys(p).forEach(k => { out[k] = (k === "attended" || k === "late") ? !!p[k] : nn(p[k]); });
+  if (p.attended === false) out.late = false;
+  return W(R("attRecords/" + eventId + "~" + memberId).update(out)).then(() => log("Attendance " + (S.events[eventId] || {}).name + " / " + (S.members[memberId] || {}).name + ": " + Object.keys(p).map(k => k + "=" + p[k]).join(", ")));
+}
+function saveMember(id, f) {
+  if (!canWrite("members")) return deny();
+  const committee = myScope() || f.committee;
+  if (!f.name.trim()) { toast("Name is required."); return Promise.resolve(); }
+  if (committees().indexOf(committee) < 0) { toast("Pick a committee."); return Promise.resolve(); }
+  if (id && S.members[id] && myScope() && S.members[id].committee !== myScope()) return deny();
+  const rec = { committee: committee, name: f.name.trim(), roleTitle: f.roleTitle.trim(), whatsapp: f.whatsapp.trim(), specialization: f.specialization.trim(), gradYear: f.gradYear.trim(), status: MEMBER_STATUS.indexOf(f.status) >= 0 ? f.status : "Active" };
+  const ref = id ? R("members/" + id) : R("members").push(), newId = ref.key;
+  return W(ref.set(rec)).then(() => { if (!id && S.user.role === "hr") W(R("assignments/" + S.user.id + "/" + newId).set(true)); return log((id ? "Edited member " : "Added member ") + rec.name); });   // an HR user's new member joins their cohort
+}
+function saveTask(f) {
+  if (!canWrite("tasks")) return deny();
+  const scope = myScope() || f.scope;
+  if (!f.title.trim()) { toast("Title is required."); return Promise.resolve(); }
+  if (scope !== "ALL" && committees().indexOf(scope) < 0) return Promise.resolve();
+  if (!okDate(f.deadline)) return Promise.resolve();
+  return W(R("tasks").push({ title: f.title.trim(), scope: scope, deadline: f.deadline, issuedBy: S.user.name, notes: f.notes.trim() })).then(() => log("Issued task " + f.title));
+}
+function saveEvent(f) {
+  if (!canWrite("att")) return deny();
+  const scope = myScope() || f.scope;
+  if (!f.name.trim() || !f.date) { toast("Name and date are required."); return Promise.resolve(); }
+  return W(R("events").push({ name: f.name.trim(), date: f.date, scope: scope, campus: f.campus === "out" ? "out" : "on" })).then(() => log("Added event " + f.name));
+}
+function deleteItem(kind, id) {      // cascade: remove the item and every record that belongs to it
+  const isTask = kind === "task", panel = isTask ? "tasks" : "att", item = (isTask ? S.tasks : S.events)[id];
+  if (!canWrite(panel) || !item || !mineOnly(item)) return deny();
+  const up = {}; up[(isTask ? "tasks/" : "events/") + id] = null;
+  Object.keys(isTask ? S.taskRecords : S.attRecords).forEach(k => { if (k.indexOf(id + "~") === 0) up[(isTask ? "taskRecords/" : "attRecords/") + k] = null; });
+  return W(R("").update(up)).then(() => log("Deleted " + kind + " " + (item.title || item.name)));
+}
+function addBonus(f) {
+  if (!canWrite("committee") || !memberInScope(f.memberId)) return deny();
+  const pts = Number(f.points); if (f.points === "" || !isFinite(pts)) { toast("Points must be a number."); return Promise.resolve(); }
+  const rl = rules();
+  if (pts === 0) { toast("Points can't be zero."); return false; }
+  if (Math.abs(pts) > rl.maxAdjust) { toast("One bonus/minus can't exceed " + rl.maxAdjust + " points."); return false; }
+  if (Math.abs(pts) > rl.bonusExplainAbove && !String(f.reason || "").trim()) { toast("Anything above " + rl.bonusExplainAbove + " points needs an explanation."); return false; }
+  return W(R("bonuses").push({ memberId: f.memberId, points: pts, reason: f.reason.trim(), grantedBy: S.user.name, grantedAt: todayStr() })).then(() => log("Bonus " + pts + " to " + (S.members[f.memberId] || {}).name));
+}
+function removeBonus(id) { const b = S.bonuses[id]; if (!b || !canWrite("committee") || !memberInScope(b.memberId)) return deny(); return W(R("bonuses/" + id).remove()).then(() => log("Removed bonus " + id)); }
+function addDecision(f) {
+  if (!canWrite("team")) return deny();
+  if (!f.title.trim()) { toast("Title is required."); return Promise.resolve(); }
+  return W(R("decisions").push({ date: f.date || todayStr(), title: f.title.trim(), decision: f.decision.trim(), basis: f.basis.trim(), decidedBy: S.user.name })).then(() => log("Decision: " + f.title));
+}
+
+// ================================================================
+// Views
+// ================================================================
+function commTable(rows) {
+  return '<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Committee</th><th class="n">Members</th><th class="n">Working</th><th class="n">Not working</th><th class="n">% working</th><th class="n">Avg per item</th><th>Status</th></tr></thead><tbody>' +
+    rows.map((r, i) => "<tr><td>" + (i + 1) + "</td><td><b>" + esc(r.committee) + '</b></td><td class="n">' + r.scoredCount + '</td><td class="n">' + r.workingCount + '</td><td class="n">' + r.notWorking + '</td><td class="n"><b>' + Math.round(r.workPct) + '%</b></td><td class="n">' + fmt(r.avgItem) + "</td><td>" + statusPill(r.label) + "</td></tr>").join("") + "</tbody></table></div>";
+}
+function vTeam() {
+  const c = compute(), rows = c.commRows.slice().sort((a, b) => (b.workPct || 0) - (a.workPct || 0));
+  const dec = arr(S.decisions).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return '<div class="row"><h2 class="disp">Team evaluation</h2>' + (canSee("sheets") && !myScope() ? '<button class="btn" data-act="openSheet" data-kind="team">Team sheet</button>' : "") + "</div>" +
+    '<div class="kpis"><div class="kpi"><b>' + statusPill(c.team.label) + "</b><span>Team</span></div><div class=\"kpi\"><b>" + Math.round(c.team.workPct) + "%</b><span>Members working (" + c.team.workingCount + " of " + c.team.scoredCount + ")</span></div><div class=\"kpi\"><b>" + c.team.committeesWorking + " / " + c.team.committees + "</b><span>Committees working</span></div></div>" +
+    '<div class="card"><h3 class="disp">Committees</h3>' + (rows.length ? commTable(rows) : '<div class="empty">No committees yet.</div>') + "</div>" +
+    '<div class="card"><div class="row" style="margin-bottom:6px"><h3 class="disp" style="margin:0">Board decisions</h3>' + (canWrite("team") ? '<button class="btn sm" data-act="addDecision">+ Decision</button>' : "") + "</div>" +
+    (dec.length ? '<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Title</th><th>Decision</th><th>Basis</th><th>By</th><th></th></tr></thead><tbody>' + dec.map(d => "<tr><td>" + esc(d.date) + "</td><td>" + esc(d.title) + "</td><td>" + esc(d.decision) + "</td><td>" + esc(d.basis) + "</td><td>" + esc(d.decidedBy) + "</td><td>" + (canWrite("team") ? '<button class="link red" data-act="delDecision" data-id="' + d.id + '">Remove</button>' : "") + "</td></tr>").join("") + "</tbody></table></div>" : '<div class="empty">No decisions logged.</div>') + "</div>";
+}
+function currentComm() { const l = commOpts(); if (!S.sel.comm || l.indexOf(S.sel.comm) < 0) S.sel.comm = l[0] || ""; return S.sel.comm; }
+function vCommittee() {
+  const cn = currentComm(), c = compute(), cr = c.commRows.find(r => r.committee === cn), rows = c.memberRows.filter(r => r.committee === cn).sort((a, b) => a.rank - b.rank || String(a.name).localeCompare(String(b.name)));
+  const bon = arr(S.bonuses).filter(b => memberInScope(b.memberId) && (S.members[b.memberId] || {}).committee === cn);
+  return '<div class="row"><h2 class="disp">Committee</h2><div style="display:flex;gap:8px;flex-wrap:wrap">' + (myScope() ? '<span class="pill">' + esc(cn) + "</span>" : sel(commOpts(), cn, 'data-act="commSel"')) +
+    (canWrite("committee") ? '<button class="btn sm" data-act="addBonus">+ Bonus / Minus</button>' : "") + (canSee("sheets") ? '<button class="btn sm" data-act="openSheet" data-kind="committee" data-c="' + esc(cn) + '">Committee sheet</button>' : "") + "</div></div>" +
+    (cr ? '<div class="kpis"><div class="kpi"><b>' + statusPill(cr.label) + "</b><span>Committee</span></div><div class=\"kpi\"><b>" + Math.round(cr.workPct) + "%</b><span>Members working (" + cr.workingCount + " of " + cr.scoredCount + ")</span></div><div class=\"kpi\"><b>" + fmt(cr.avgItem) + "</b><span>Avg score per task/event</span></div></div>" + (cr.label === "Carried by a few" ? '<div class="b-warn" style="padding:10px 14px;border-radius:12px;margin-bottom:10px">The average looks fine, but only ' + cr.workingCount + " of " + cr.scoredCount + " members are working. A few people are carrying this committee.</div>" : "") : "") +
+    '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Member</th><th>Role</th><th>Status</th><th class="n">Tasks</th><th class="n">Bonus</th><th class="n">Attendance</th><th class="n">Total</th>' + (hideQC() ? "" : '<th class="n">Avg quality</th>') + '</tr></thead><tbody>' +
+    (rows.length ? rows.map(r => "<tr><td>" + r.rank + "</td><td>" + nm(r.name) + "</td><td>" + nm(r.roleTitle) + "</td><td>" + statusPill(r.status) + "</td><td class=\"n\">" + sgn(r.taskPts) + "</td><td class=\"n\">" + sgn(r.bonusPts) + "</td><td class=\"n\">" + sgn(r.attPts) + "</td><td class=\"n\"><b>" + sgn(r.total) + "</b></td>" + (hideQC() ? "" : "<td class=\"n\">" + fmt(r.avgQuality) + "</td>") + "</tr>").join("") : '<tr><td colspan="8" class="empty">No active members in this committee.</td></tr>') + "</tbody></table></div></div>" +
+    (bon.length ? '<div class="card"><h3 class="disp">Bonuses</h3><div class="tbl-wrap"><table><thead><tr><th>Member</th><th class="n">Points</th><th>Reason</th><th>By</th><th>Date</th><th></th></tr></thead><tbody>' + bon.map(b => "<tr><td>" + nm((S.members[b.memberId] || {}).name) + "</td><td class=\"n\">" + sgn(b.points) + "</td><td>" + esc(b.reason) + "</td><td>" + esc(b.grantedBy) + "</td><td>" + esc(b.grantedAt) + "</td><td>" + (canWrite("committee") ? '<button class="link red" data-act="delBonus" data-id="' + b.id + '">Remove</button>' : "") + "</td></tr>").join("") + "</tbody></table></div></div>" : "");
+}
+/** mode "mark" = My Group (HR checks done/excuse/attendance); mode "view" = Tasks/Attendance tabs (only the Head's quality check is editable). */
+function grid(kind, item, mode, members) {
+  const isT = kind === "t", rl = rules(), todayN = dayNum(todayStr());
+  const base = members || arr(S.members).filter(m => isActive(m) && (!myScope() || m.committee === myScope()));
+  const mem = base.filter(m => appliesTo(item.scope, m)).sort((a, b) => String(a.committee).localeCompare(String(b.committee)) || String(a.name).localeCompare(String(b.name)));
+  if (!mem.length) return '<div class="empty">No members in scope.</div>';
+  const can = (f, mid) => mode === "mark" ? (f !== "quality" && canMark(mid)) : (isT && f === "quality" && canQC(mid));
+  const showQ = !hideQC(), dash = '<span class="meta">\u2014</span>';
+  const head = isT ? "<th>Member</th><th>Done?</th><th>Done on</th><th>Excuse</th><th>Note / proof</th>" + (showQ ? "<th>Quality 1-5</th>" : "") + "<th>Outcome</th><th class=\"n\">Points</th>" : "<th>Member</th><th>Response</th><th>Attendance?</th><th>Late?</th><th>Excuse</th><th>Note</th><th>Outcome</th><th class=\"n\">Points</th>";
+  return '<div class="tbl-wrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + mem.map(m => {
+    const rec = (isT ? S.taskRecords : S.attRecords)[item.id + "~" + m.id] || {}, r = isT ? scoreTask(rec, item, rl, todayN) : scoreAtt(rec, item, rl, todayN), d = f => can(f, m.id) ? "" : " disabled";
+    const a = 'data-kind="' + kind + '" data-a="' + item.id + '" data-m="' + m.id + '" data-f="';
+    const aSt = isT ? "" : attStatus(rec), st = taskStatus(rec), dlN = isT ? dayNum(item.deadline) : NaN, isLate = isT && st === "done" && !!rec.doneAt && isFinite(dlN) && dayNum(rec.doneAt) > dlN, needProof = isT && st === "done" && !!rec.doneAt && !isLate && isFinite(dlN) && todayN > dlN, flag = isT && !hideQC() ? taskFlag(rec, item) : "";
+    const cells = isT ?
+      "<td>" + sel([["", "\u2014 choose"], ["done", "Done"], ["notdone", "Not done"]], st, a + 'status"', !can("status", m.id)) + "</td>" +
+      "<td>" + (st === "done" ? '<input class="cellin" type="date" max="' + todayStr() + '" ' + a + 'doneAt" value="' + esc(rec.doneAt || "") + '"' + d("doneAt") + ">" : dash) + "</td>" +
+      "<td>" + (st === "notdone" || isLate ? sel(OPT.excuse, rec.excuse || "none", a + 'excuse"', !can("excuse", m.id)) : dash) + "</td>" +
+      "<td>" + (st === "notdone" || isLate || needProof ? '<input class="cellin" type="text" ' + (needProof ? 'placeholder="Deadline passed \u2014 add proof" ' : "") + a + 'excuseNote" value="' + esc(rec.excuseNote || "") + '"' + d("excuseNote") + ">" : dash) + "</td>" +
+      (showQ ? '<td><input class="cellin" type="number" min="1" max="5" step="1" style="width:70px" ' + a + 'quality" value="' + esc(rec.quality == null ? "" : rec.quality) + '"' + d("quality") + "></td>" : "") :
+      "<td>" + sel(OPT.response, rec.response || "none", a + 'response"', !can("response", m.id)) + "</td><td>" + sel([["", "\u2014 choose"], ["attended", "Attended"], ["absent", "Didn't attend"]], aSt, a + 'status"', !can("status", m.id)) + "</td><td>" + (aSt === "attended" ? '<input type="checkbox" ' + a + 'late"' + (rec.late ? " checked" : "") + d("late") + ">" : dash) + "</td><td>" + (aSt === "absent" ? sel(OPT.excuse, rec.excuse || "none", a + 'excuse"', !can("excuse", m.id)) : dash) + "</td><td>" + (aSt === "absent" ? '<input class="cellin" type="text" ' + a + 'excuseNote" value="' + esc(rec.excuseNote || "") + '"' + d("excuseNote") + ">" : dash) + "</td>";
+    return "<tr><td>" + nm(m.name) + ' <span class="meta">' + esc(m.committee) + "</span></td>" + cells + '<td><span class="pill">' + esc(r.outcome) + '</span>' + (flag ? '<div style="margin-top:4px;color:#991B1B;font-size:12px">\u26A0 ' + esc(flag) + (mode === "view" && canQC(m.id) ? ' <button type="button" class="link" data-act="verifyFlag" data-a="' + item.id + '" data-m="' + m.id + '">Mark verified</button>' : "") + "</div>" : (isT && !hideQC() && rec.flagOk ? '<div class="meta">\u2713 verified by ' + esc(rec.flagBy || "") + "</div>" : "")) + '</td><td class="n">' + sc(r.score) + "</td></tr>";
+  }).join("") + "</tbody></table></div>";
+}
+function pickList(kind) {
+  const isT = kind === "t", list = arr(isT ? S.tasks : S.events).filter(visScope).sort((a, b) => String(b[isT ? "deadline" : "date"] || "").localeCompare(String(a[isT ? "deadline" : "date"] || "")));
+  const key = isT ? "task" : "event";
+  if (!list.find(x => x.id === S.sel[key])) S.sel[key] = list[0] ? list[0].id : "";
+  return { list: list, cur: list.find(x => x.id === S.sel[key]) };
+}
+const flagCount = t => hideQC() ? 0 : arr(S.members).filter(m => isActive(m) && appliesTo(t.scope, m) && memberInScope(m.id) && taskFlag((S.taskRecords || {})[t.id + "~" + m.id], t)).length;
+function vTasks() {
+  const p = pickList("t"), nFlags = p.list.reduce((n, t) => n + flagCount(t), 0);
+  return (nFlags ? '<div class="b-warn" style="padding:10px 14px;border-radius:12px;margin-bottom:10px">\u26A0 <b>' + nFlags + " task record" + (nFlags === 1 ? "" : "s") + " in conflict.</b> Marked on time after the deadline had passed. Check the proof, then mark verified.</div>" : "") + '<div class="row"><h2 class="disp">Tasks</h2>' + (canWrite("tasks") ? '<button class="btn" data-act="addTask">+ Issue task</button>' : "") + "</div>" +
+    '<p class="meta" style="margin-top:-6px">Tasks are issued here and Heads enter the quality check. Checking whether each member did the task is done by HR in <b>My Group</b>.</p>' +
+    (p.list.length ? '<div class="split"><div>' + p.list.map(t => '<button class="list-item' + (t.id === S.sel.task ? " on" : "") + '" data-act="pickTask" data-id="' + t.id + '"><b>' + esc(t.title) + '</b><br><span class="meta">' + esc(t.scope || "ALL") + " \u00B7 due " + esc(t.deadline || "\u2014") + "</span>" + (flagCount(t) ? ' <span class="pill" style="background:#FEE2E2;color:#991B1B">\u26A0 ' + flagCount(t) + "</span>" : "") + "</button>").join("") + "</div>" +
+      '<div class="card"><div class="row" style="margin-bottom:6px"><div><h3 class="disp" style="margin:0">' + esc(p.cur.title) + '</h3><span class="meta">' + esc(p.cur.scope || "ALL") + " \u00B7 due " + esc(p.cur.deadline || "\u2014") + " \u00B7 issued by " + esc(p.cur.issuedBy || "") + (p.cur.notes ? " \u00B7 " + esc(p.cur.notes) : "") + "</span></div>" + (canWrite("tasks") && mineOnly(p.cur) ? '<button class="link red" data-act="delTask" data-id="' + p.cur.id + '">Delete</button>' : "") + "</div>" + grid("t", p.cur, "view") + "</div></div>" : empty("No tasks yet."));
+}
+function vAtt() {
+  const p = pickList("e");
+  return '<div class="row"><h2 class="disp">Attendance</h2>' + (canWrite("att") ? '<button class="btn" data-act="addEvent">+ Event</button>' : "") + "</div>" +
+    '<p class="meta" style="margin-top:-6px">Events are created here. Marking who attended is done by HR in <b>My Group</b>.</p>' +
+    (p.list.length ? '<div class="split"><div>' + p.list.map(t => '<button class="list-item' + (t.id === S.sel.event ? " on" : "") + '" data-act="pickEvent" data-id="' + t.id + '"><b>' + esc(t.name) + '</b><br><span class="meta">' + esc(t.scope || "ALL") + " \u00B7 " + esc(t.date || "") + " \u00B7 " + esc(optLabel("campus", t.campus)) + "</span></button>").join("") + "</div>" +
+      '<div class="card"><div class="row" style="margin-bottom:6px"><div><h3 class="disp" style="margin:0">' + esc(p.cur.name) + '</h3><span class="meta">' + esc(p.cur.scope || "ALL") + " \u00B7 " + esc(p.cur.date || "") + " \u00B7 " + esc(optLabel("campus", p.cur.campus)) + "</span></div>" + (canWrite("att") && mineOnly(p.cur) ? '<button class="link red" data-act="delEvent" data-id="' + p.cur.id + '">Delete</button>' : "") + "</div>" + grid("e", p.cur, "view") + "</div></div>" : empty("No events yet."));
+}
+// ---------------- HR cohorts: Assignments (admin) + My Group (HR) ----------------
+const hrUsers = () => Object.keys(S.passkeys).filter(id => (S.passkeys[id] || {}).role === "hr").sort((a, b) => String(S.passkeys[a].name).localeCompare(String(S.passkeys[b].name)));
+const activeMembers = () => arr(S.members).filter(m => isActive(m));
+function cohortOf(hrId) { return Object.keys(S.assignments[hrId] || {}).map(id => S.members[id] ? Object.assign({}, S.members[id], { id: id }) : null).filter(m => m && isActive(m)).sort((a, b) => String(a.name).localeCompare(String(b.name))); }
+function assignedIds() { const set = new Set(); hrUsers().forEach(h => cohortOf(h).forEach(m => set.add(m.id))); return set; }
+function myCohort() {
+  const u = S.user;
+  if (u.role === "hr") return cohortOf(u.id);
+  if (u.role === "admin") { const h = S.sel.mgHr; return (!h || h === "ALL") ? activeMembers().sort((a, b) => String(a.name).localeCompare(String(b.name))) : cohortOf(h); }
+  return [];
+}
+function saveCohort(hrId, ids) {       // exclusive: moving a member into this cohort removes them from any other HR's cohort
+  if (!canWrite("assign")) return deny();
+  if (!S.passkeys[hrId] || S.passkeys[hrId].role !== "hr") return deny();
+  const set = new Set((ids || []).filter(id => S.members[id])), up = {};
+  Object.keys(S.assignments).forEach(h => Object.keys(S.assignments[h] || {}).forEach(m => { if (h === hrId) { if (!set.has(m)) up["assignments/" + h + "/" + m] = null; } else if (set.has(m)) up["assignments/" + h + "/" + m] = null; }));
+  set.forEach(m => { up["assignments/" + hrId + "/" + m] = true; });
+  return W(R("").update(up)).then(() => log("Cohort of " + S.passkeys[hrId].name + " set to " + set.size + " member(s)"));
+}
+function distributeUnassigned() {       // round-robin the unassigned active members over the HR users, smallest cohort first
+  if (!canWrite("assign")) return deny();
+  const hrs = hrUsers(); if (!hrs.length) { toast("Create HR passkeys first."); return Promise.resolve(); }
+  const got = assignedIds(), un = activeMembers().filter(m => !got.has(m.id)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  if (!un.length) { toast("Everyone is already assigned."); return Promise.resolve(); }
+  const sizes = {}; hrs.forEach(h => { sizes[h] = cohortOf(h).length; }); const up = {};
+  un.forEach(m => { const h = hrs.slice().sort((a, b) => sizes[a] - sizes[b])[0]; up["assignments/" + h + "/" + m.id] = true; sizes[h]++; });
+  return W(R("").update(up)).then(() => log("Distributed " + un.length + " unassigned member(s) over " + hrs.length + " HR user(s)"));
+}
+function editCohortModal(hrId) {
+  const owner = {}; hrUsers().forEach(h => cohortOf(h).forEach(m => { owner[m.id] = h; }));
+  const rows = activeMembers().sort((a, b) => String(a.committee).localeCompare(String(b.committee)) || String(a.name).localeCompare(String(b.name)));
+  modal("Cohort \u2014 " + (S.passkeys[hrId] || {}).name, [{ html: '<p class="meta">Tick the members this HR user checks. A member belongs to one cohort, so ticking someone moves them here.</p><div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px 10px">' + (rows.length ? rows.map(m => '<label style="display:flex;gap:8px;align-items:center;margin:6px 0;font-weight:400;color:var(--ink)"><input type="checkbox" name="cohort" value="' + m.id + '"' + (owner[m.id] === hrId ? " checked" : "") + "> " + nm(m.name) + ' <span class="meta">' + esc(m.committee) + (owner[m.id] && owner[m.id] !== hrId ? " \u00B7 now with " + esc((S.passkeys[owner[m.id]] || {}).name) : "") + "</span></label>").join("") : '<div class="empty">No members yet.</div>') + "</div>" }],
+    () => { saveCohort(hrId, $$("#mForm input[name=cohort]").filter(x => x.checked).map(x => x.value)); }, "Save cohort");
+}
+function unchecked(kind, item, mem) {     // members in the cohort the HR user has not touched yet for a task/event that is already due
+  const isT = kind === "t", today = dayNum(todayStr()), due = isT ? dayNum(item.deadline) < today : dayNum(item.date) <= today;
+  if (!due) return 0;
+  return mem.filter(m => appliesTo(item.scope, m) && !(isT ? S.taskRecords : S.attRecords)[item.id + "~" + m.id]).length;
+}
+function vAssign() {
+  const hrs = hrUsers(), got = assignedIds(), un = activeMembers().filter(m => !got.has(m.id)).sort((a, b) => String(a.name).localeCompare(String(b.name))), w = canWrite("assign");
+  return '<div class="row"><h2 class="disp">Assignments</h2>' + (w ? '<button class="btn" data-act="distribute">Distribute unassigned evenly</button>' : "") + "</div>" +
+    '<p class="meta" style="margin-top:-6px">Each HR member checks tasks and attendance for their own cohort in <b>My Group</b>. A member belongs to one cohort.</p>' +
+    (hrs.length ? hrs.map(h => { const c = cohortOf(h); return '<div class="card"><div class="row" style="margin-bottom:8px"><div><h3 class="disp" style="margin:0">' + nm(S.passkeys[h].name) + '</h3><span class="meta">' + c.length + " member" + (c.length === 1 ? "" : "s") + "</span></div>" + (w ? '<div><button class="btn sm" data-act="editCohort" data-id="' + esc(h) + '">Edit cohort</button> ' + (c.length ? '<button class="link red" data-act="clearCohort" data-id="' + esc(h) + '">Clear</button>' : "") + "</div>" : "") + "</div>" + (c.length ? c.map(m => '<span class="pill" style="margin:2px 4px 2px 0;display:inline-block">' + nm(m.name) + " \u00B7 " + esc(m.committee) + "</span>").join("") : '<span class="meta">No members assigned yet.</span>') + "</div>"; }).join("") : empty("No HR passkeys yet. Add passkeys with the HR role in Access first.")) +
+    '<div class="card"><h3 class="disp">Unassigned members (' + un.length + ")</h3>" + (un.length ? un.map(m => '<span class="pill" style="margin:2px 4px 2px 0;display:inline-block">' + nm(m.name) + " \u00B7 " + esc(m.committee) + "</span>").join("") : '<span class="meta">Everyone is assigned.</span>') + "</div>";
+}
+function vMyGroup() {
+  const u = S.user, mem = myCohort(), tab = ["tasks", "att", "members"].indexOf(S.sel.mgTab) >= 0 ? S.sel.mgTab : "tasks", c = compute(), rows = mem.map(m => c.memberRows.find(r => r.id === m.id)).filter(Boolean);
+  const head = '<div class="row"><h2 class="disp">My Group</h2>' + (u.role === "admin" ? '<select class="field" style="max-width:260px" data-sel="mgHr"><option value="ALL">All members</option>' + hrUsers().map(h => '<option value="' + esc(h) + '"' + (S.sel.mgHr === h ? " selected" : "") + ">" + esc(S.passkeys[h].name) + "\u2019s cohort</option>").join("") + "</select>" : "") + "</div>";
+  if (!mem.length) return head + empty(u.role === "hr" ? "No members are assigned to you yet. An admin assigns your cohort in Assignments." : "No members to show.");
+  const tabs = '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">' + [["tasks", "Check tasks"], ["att", "Check attendance"], ["members", "Cohort overview"]].map(t => '<button class="btn sm' + (tab === t[0] ? "" : " ghost") + '" data-act="mgTab" data-t="' + t[0] + '">' + t[1] + "</button>").join("") + "</div>";
+  const kp = '<div class="kpis"><div class="kpi"><b>' + mem.length + "</b><span>Members in cohort</span></div><div class=\"kpi\"><b>" + fmt(mean(rows.map(r => r.total))) + "</b><span>Average total points</span></div></div>";
+  if (tab === "members") return head + tabs + kp + '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Committee</th><th>Status</th><th class="n">Tasks done</th><th class="n">Task pts</th><th class="n">Attended</th><th class="n">Attendance pts</th><th class="n">Bonus</th><th class="n">Total</th></tr></thead><tbody>' + rows.map(r => "<tr><td>" + nm(r.name) + "</td><td>" + esc(r.committee) + '</td><td>' + statusPill(r.status) + '</td><td class="n">' + r.tasksDone + "/" + r.tasksTotal + '</td><td class="n">' + sgn(r.taskPts) + '</td><td class="n">' + r.attended + "/" + r.eventsTotal + '</td><td class="n">' + sgn(r.attPts) + '</td><td class="n">' + sgn(r.bonusPts) + '</td><td class="n"><b>' + sgn(r.total) + "</b></td></tr>").join("") + "</tbody></table></div></div>";
+  const isT = tab === "tasks", key = isT ? "mgTask" : "mgEvent";
+  const list = arr(isT ? S.tasks : S.events).filter(i => mem.some(m => appliesTo(i.scope, m))).sort((a, b) => String(b[isT ? "deadline" : "date"] || "").localeCompare(String(a[isT ? "deadline" : "date"] || "")));
+  if (!list.find(x => x.id === S.sel[key])) S.sel[key] = list[0] ? list[0].id : "";
+  const cur = list.find(x => x.id === S.sel[key]);
+  if (!list.length) return head + tabs + kp + empty(isT ? "No tasks have been issued for your cohort yet." : "No events yet.");
+  return head + tabs + kp + '<div class="split"><div>' + list.map(i => { const n = unchecked(isT ? "t" : "e", i, mem); return '<button class="list-item' + (i.id === S.sel[key] ? " on" : "") + '" data-act="' + (isT ? "pickMgTask" : "pickMgEvent") + '" data-id="' + i.id + '"><b>' + esc(i.title || i.name) + '</b><br><span class="meta">' + esc(i.scope || "ALL") + " \u00B7 " + esc(isT ? "due " + (i.deadline || "\u2014") : i.date || "") + "</span>" + (n ? ' <span class="pill" style="background:#FEF9C3;color:#854D0E">' + n + " to check</span>" : "") + "</button>"; }).join("") + "</div>" +
+    '<div class="card"><h3 class="disp" style="margin:0 0 4px">' + esc(cur.title || cur.name) + '</h3><span class="meta">' + esc(cur.scope || "ALL") + " \u00B7 " + esc(isT ? "due " + (cur.deadline || "\u2014") + (cur.notes ? " \u00B7 " + cur.notes : "") : (cur.date || "") + " \u00B7 " + optLabel("campus", cur.campus)) + '</span><div style="margin-top:10px">' + grid(isT ? "t" : "e", cur, "mark", mem) + "</div></div></div>";
+}
+function vMembers() {
+  const rows = arr(S.members).filter(m => !myScope() || m.committee === myScope()).sort((a, b) => String(a.committee).localeCompare(String(b.committee)) || String(a.name).localeCompare(String(b.name)));
+  return '<div class="row"><h2 class="disp">Members</h2>' + (canWrite("members") ? '<button class="btn" data-act="addMember">+ Member</button>' : "") + "</div>" +
+    '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Committee</th><th>Role</th><th>WhatsApp</th><th>Specialization</th><th>Grad year</th><th>Status</th><th></th></tr></thead><tbody>' +
+    (rows.length ? rows.map(m => "<tr><td>" + nm(m.name) + "</td><td>" + esc(m.committee) + "</td><td>" + nm(m.roleTitle) + "</td><td dir=\"ltr\">" + esc(m.whatsapp) + "</td><td>" + nm(m.specialization) + "</td><td>" + esc(m.gradYear) + '</td><td><span class="pill">' + esc(m.status || "Active") + "</span></td><td>" + (canWrite("members") ? '<button class="link" data-act="editMember" data-id="' + m.id + '">Edit</button>' : "") + "</td></tr>").join("") : '<tr><td colspan="8" class="empty">No members yet.</td></tr>') + "</tbody></table></div></div>";
+}
+function vRules() {
+  const rl = rules(), w = canWrite("rules"), inp = (path, v) => '<input class="cellin" type="number" step="any" style="width:80px" data-kind="rule" data-path="' + path + '" value="' + esc(v) + '"' + (w ? "" : " disabled") + ">";
+  const T = [["doneOnTime", "Done on time"], ["doneLateExcused", "Done late, valid excuse"], ["doneLateNoExcuse", "Done late, no excuse"], ["notDoneExcused", "Not done, valid excuse"], ["notDoneNoExcuse", "Not done, no excuse"]];
+  const M = [["on|coming", "On campus \u00B7 Coming"], ["on|notcoming", "On campus \u00B7 Not coming"], ["on|none", "On campus \u00B7 Didn't respond"], ["out|coming", "Out of campus \u00B7 Coming"], ["out|notcoming", "Out of campus \u00B7 Not coming"], ["out|none", "Out of campus \u00B7 Didn't respond"]];
+  return '<div class="row"><h2 class="disp">Rules</h2>' + (w ? '<button class="btn ghost sm" data-act="resetRules">Reset to defaults</button>' : "") + "</div>" +
+    '<div class="card"><h3 class="disp">Task points</h3><table><tbody>' + T.map(t => "<tr><td>" + t[1] + '</td><td class="n">' + inp("task/" + t[0], rl.task[t[0]]) + "</td></tr>").join("") + "</tbody></table><p class=\"meta\">Excuse status counts only when it is <b>Valid</b>. \"Very late\" counts as no excuse.</p></div>" +
+    '<div class="card"><h3 class="disp">Attendance points</h3><div class="tbl-wrap"><table><thead><tr><th>Campus \u00B7 Response</th><th class="n">Attended</th><th class="n">Attended \u2013 late</th><th class="n">Absent</th><th class="n">Absent \u2013 excused</th></tr></thead><tbody>' +
+    M.map(m => "<tr><td>" + m[1] + "</td>" + OUT_KEYS.map((o, i) => '<td class="n">' + inp("matrix/" + m[0] + "/" + o, rl.matrix[m[0]][i]) + "</td>").join("") + "</tr>").join("") + "</tbody></table></div>" +
+    '<p class="meta">Totals are clamped to ' + inp("attMin", rl.attMin) + " .. " + inp("attMax", rl.attMax) + ". Pending until the event date has passed.</p></div>" +
+    '<div class="card"><h3 class="disp">Working or not</h3><p><b>Member:</b> Working when the average score per task/event is at least ' + inp("workLine", rl.workLine) + ' <span class="meta">Default 0.5. Between 0 and this line is Slipping, below 0 is Not working.</span></p><p><b>Committee:</b> Working when at least ' + inp("commLine", rl.commLine) + ' % of its members are Working. <span class="meta">Default 60.</span></p><p><b>Carried by a few:</b> the committee average looks fine, but fewer than ' + inp("carriedLine", rl.carriedLine) + ' % of members are Working. <span class="meta">Default 50.</span></p><p class="meta">Team is Working when the same percentage of all members is Working.</p></div>' +
+    '<div class="card"><h3 class="disp">Bonus &amp; minus</h3><p>Explanation required above ' + inp("bonusExplainAbove", rl.bonusExplainAbove) + ' points.</p><p>Maximum for one entry ' + inp("maxAdjust", rl.maxAdjust) + ' points.</p><p class="meta">Bonuses and minuses count in the member total only, never in the committee score.</p></div>';
+}
+
+// ================================================================
+// SHEET GENERATOR
+//   One sheet MODEL per sheet (rows of styled cells + merges) feeds three outputs, so they always agree:
+//     1. on-screen / print preview (HTML)       2. a real Excel workbook (.xlsx, opens in Excel & Google Sheets)
+//     3. a native Google Sheet created through the Google Sheets API (needs a Google OAuth client ID, set in Access)
+//   Navy & white. Text is 12-15pt only: 15 title + key numbers, 14 section headings, 13 member names, 12 everything else.
+//   English labels only. Arabic appears only where it is real data (member names / roles) and is flagged right-to-left per cell.
+// ================================================================
+const NAVY = "0B2545", TINT = "EAF0F8", ZEBRA = "F3F7FC", TOTBG = "DCE6F5", LINEC = "C7D4E8", MUTED = "35507A", WHITE = "FFFFFF";
+const STY = {
+  title: { bg: NAVY, fg: WHITE, sz: 15, b: 1, h: "center", bd: "none" },
+  meta: { bg: TINT, fg: NAVY, sz: 12, h: "center", bd: "none" },
+  kpil: { bg: TINT, fg: MUTED, sz: 12, h: "center", bd: "grid", wrap: 1 },
+  kpiv: { bg: TINT, fg: NAVY, sz: 15, b: 1, h: "center", bd: "grid" },
+  h2: { bg: WHITE, fg: NAVY, sz: 14, b: 1, h: "left", bd: "bottom" },
+  th: { bg: NAVY, fg: WHITE, sz: 12, b: 1, h: "center", bd: "grid", wrap: 1 },
+  td: { bg: WHITE, fg: NAVY, sz: 12, h: "center", bd: "grid", wrap: 1 }, td2: { bg: ZEBRA, fg: NAVY, sz: 12, h: "center", bd: "grid", wrap: 1 },
+  nm: { bg: WHITE, fg: NAVY, sz: 13, b: 1, h: "center", bd: "grid", wrap: 1 }, nm2: { bg: ZEBRA, fg: NAVY, sz: 13, b: 1, h: "center", bd: "grid", wrap: 1 },
+  tot: { bg: TOTBG, fg: NAVY, sz: 12, b: 1, h: "center", bd: "grid" },
+  text: { bg: TINT, fg: NAVY, sz: 12, h: "left", bd: "none", wrap: 1 },
+  sign: { bg: WHITE, fg: NAVY, sz: 12, h: "center", bd: "top" },
+  blank: { bg: WHITE, fg: NAVY, sz: 12, h: "left", bd: "none" }
+};
+const BD_CSS = { none: "border:0;", grid: "border:1px solid #" + LINEC + ";", bottom: "border:0;border-bottom:2px solid #" + NAVY + ";", top: "border:0;border-top:1px solid #" + NAVY + ";" };
+const SHEET_CSS = [
+  ".sheet{background:#fff;font-family:Arial,Cairo,'Segoe UI',Tahoma,sans-serif;width:277mm;max-width:100%;margin:0 auto 18px;padding:8mm 10mm;box-sizing:border-box;border:1px solid #CBD5E1;overflow-x:auto}",
+  "table.x{width:100%;border-collapse:collapse;table-layout:fixed}",
+  "table.x td{padding:3px 6px;vertical-align:middle;overflow-wrap:anywhere;line-height:1.3}"
+].concat(Object.keys(STY).map(k => { const s = STY[k]; return "td.x-" + k + "{background:#" + s.bg + ";color:#" + s.fg + ";font-size:" + s.sz + "pt;" + (s.b ? "font-weight:700;" : "") + "text-align:" + s.h + ";" + BD_CSS[s.bd] + "}"; }))
+  .concat(["@media print{@page{size:A4 landscape;margin:8mm}body{background:#fff!important}body>*:not(#sheetOverlay){display:none!important}",
+    "#sheetOverlay{position:static!important;background:#fff!important;overflow:visible!important;display:block!important}.sheet-bar{display:none!important}#sheetPages{padding:0!important}",
+    ".sheet{border:0;margin:0;width:auto;padding:0;page-break-after:always;overflow:visible}.sheet:last-child{page-break-after:auto}table.x tr{page-break-inside:avoid}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"]).join("\n");
+
+const isAr = s => /[\u0600-\u06FF\u0750-\u077F]/.test(String(s || ""));
+const rn = v => (typeof v === "number" && isFinite(v)) ? Math.round(v * 100) / 100 : (v == null ? "" : v);
+const C = (v, s, extra) => Object.assign({ v: v, s: s }, extra || {});
+const nameC = (v, s) => C(v, s, { rtl: isAr(v) });      // names/roles: flag Arabic cells right-to-left, nothing else
+/** A sheet model: widths in characters, row heights in points, merges as [r0,c0,r1,c1]. */
+function SB(name, widths) {
+  const m = { name: name, widths: widths, rows: [], merges: [] }, n = widths.length;
+  m.add = function (cells, h) {
+    const r = m.rows.length, out = []; let c = 0;
+    cells.forEach(cl => {
+      if (cl === null || typeof cl !== "object") cl = { v: cl, s: "td" };
+      const span = cl.span || 1; out.push({ v: cl.v == null ? "" : cl.v, s: cl.s, rtl: !!cl.rtl });
+      for (let i = 1; i < span; i++) out.push({ v: "", s: cl.s });
+      if (span > 1) m.merges.push([r, c, r, c + span - 1]);
+      c += span;
+    });
+    while (c < n) { out.push({ v: "", s: "blank" }); c++; }
+    m.rows.push({ cells: out, h: h || 20 }); return r;
+  };
+  m.span = (v, s, h) => m.add([{ v: v, s: s, span: n }], h);
+  m.gap = h => m.add([], h || 8);
+  return m;
+}
+function kpiRows(m, items, spans) {
+  m.add(items.map((k, i) => C(k[0], "kpil", { span: spans[i] })), 24);
+  m.add(items.map((k, i) => C(k[1], "kpiv", { span: spans[i] })), 30);
+}
+const sigRow = (m, labels, spans) => { m.gap(34); const cells = []; labels.forEach((l, i) => { if (i) cells.push(C("", "blank")); cells.push(C(l, "sign", { span: spans[i] })); }); m.add(cells, 22); };
+
+function sheetData(termId) {
+  if (termId && termId !== "current") {
+    const a = S.archives[termId]; if (!a) return null;
+    return { term: a.termName || "Archived term", when: a.closedAt || "", memberRows: toArr(a.memberRows), commRows: toArr(a.commRows), team: a.team || {}, decisions: toArr(a.decisions), penalty: a.penalty, archived: true };
+  }
+  const c = compute();
+  return { term: S.settings.termName || "Current term", when: todayStr(), memberRows: c.memberRows, commRows: c.commRows, team: c.team, penalty: c.penalty, decisions: arr(S.decisions).sort((a, b) => String(b.date).localeCompare(String(a.date))) };
+}
+const toArr = x => Array.isArray(x) ? x : Object.keys(x || {}).map(k => x[k]);
+const metaLine = (d, extra) => (extra ? extra + "   \u00B7   " : "") + "Term: " + d.term + "   \u00B7   Date: " + d.when + (d.archived ? " (archived)" : "") + "   \u00B7   Generated by: " + (S.user ? S.user.name : "");
+
+function modelCommittee(d, cn) {
+  const rows = d.memberRows.filter(r => r.committee === cn).sort((a, b) => a.rank - b.rank || String(a.name).localeCompare(String(b.name)));
+  const cr = d.commRows.find(c => c.committee === cn) || { workingCount: 0, scoredCount: 0, workPct: 0, label: "No data", avgItem: "", activeMembers: 0, avg: 0, edi: 0, points: 0, stdDev: 0, gini: "", ediPts: 0 };
+  const pos = d.commRows.slice().sort((a, b) => (b.workPct || 0) - (a.workPct || 0)).findIndex(c => c.committee === cn) + 1, pen = d.penalty == null ? 0.5 : d.penalty;
+  const avgOf = k => { const v = rows.map(r => r[k]).filter(x => typeof x === "number"); return v.length ? rn(mean(v)) : ""; };
+  const m = SB(cn, [6, 30, 20, 12, 11, 11, 11, 14, 11, 12]);
+  m.span("Roh El Kheer \u2014 Committee Performance Sheet", "title", 30);
+  m.span(metaLine(d, "Committee: " + cn), "meta", 22);
+  m.gap();
+  kpiRows(m, [["Active members", cr.activeMembers], ["Members working", cr.workingCount + " of " + cr.scoredCount], ["% working", Math.round(cr.workPct) + "%"], ["Avg score per task/event", rn(cr.avgItem)], ["Committee status", cr.label]], [2, 2, 2, 2, 2]);
+  m.gap();
+  m.span("Members performance", "h2", 24);
+  m.add(qcCols(["#", "Name", "Role", "Tasks done", "Task pts", "Bonus pts", "Attended", "Attendance pts", "Total", "Avg quality"]).map(h => C(h, "th")), 34);
+  rows.forEach((r, i) => { const z = i % 2 ? "2" : ""; m.add(qcCols([C(r.rank, "td" + z), nameC(r.name, "nm" + z), nameC(r.roleTitle, "td" + z), C(r.tasksDone + "/" + r.tasksTotal, "td" + z), C(rn(r.taskPts), "td" + z), C(rn(r.bonusPts), "td" + z), C(r.attended + "/" + r.eventsTotal, "td" + z), C(rn(r.attPts), "td" + z), C(rn(r.total), "td" + z), C(rn(r.avgQuality), "td" + z)]), 22); });
+  if (!rows.length) m.span("No active members in this committee.", "text", 22);
+  else m.add(qcCols([C("", "tot"), C("Average", "tot"), C("", "tot"), C("", "tot"), C(avgOf("taskPts"), "tot"), C(avgOf("bonusPts"), "tot"), C("", "tot"), C(avgOf("attPts"), "tot"), C(avgOf("total"), "tot"), C(avgOf("avgQuality"), "tot")]), 22);
+  m.gap();
+  m.span("How committee status is decided", "h2", 24);
+  m.span("A member is Working at an average of " + fmt(rules().workLine) + " per task/event or more. The committee is Working when " + fmt(rules().commLine) + "% of its members are Working; if the average looks fine but fewer than " + fmt(rules().carriedLine) + "% are Working it is marked Carried by a few.", "text", 36);
+  sigRow(m, ["Head of committee", "HR", "Board"], [3, 3, 2]);
+  return m;
+}
+function modelTeam(d) {
+  const order = d.commRows.slice().sort((a, b) => (b.workPct || 0) - (a.workPct || 0)), top = d.memberRows.slice().sort((a, b) => b.total - a.total).slice(0, 5), t = d.team || {};
+  const avgOf = k => { const v = order.map(r => r[k]).filter(x => typeof x === "number"); return v.length ? rn(mean(v)) : ""; };
+  const m = SB("Team", [6, 24, 12, 14, 14, 16, 16, 16, 16, 12]);
+  m.span("Roh El Kheer \u2014 Team Performance Sheet", "title", 30);
+  m.span(metaLine(d, ""), "meta", 22);
+  m.gap();
+  kpiRows(m, [["Team status", t.label || "-"], ["Members working", Math.round(t.workPct || 0) + "% (" + (t.workingCount || 0) + " of " + (t.scoredCount || 0) + ")"], ["Committees working", (t.committeesWorking || 0) + " of " + order.length], ["Active members", t.activeMembers == null ? "-" : t.activeMembers]], [3, 3, 2, 2]);
+  m.gap();
+  m.span("Committees summary", "h2", 24);
+  m.add(["#", "Committee", "Members", "Working", "Not working", "% working", "Avg per task/event", "Avg task", "Avg attendance", "Status"].map(h => C(h, "th")), 34);
+  order.forEach((r, i) => { const z = i % 2 ? "2" : ""; m.add([C(i + 1, "td" + z), nameC(r.committee, "nm" + z), C(r.scoredCount, "td" + z), C(r.workingCount, "td" + z), C(r.notWorking, "td" + z), C(Math.round(r.workPct) + "%", "td" + z), C(rn(r.avgItem), "td" + z), C(rn(r.avgTask), "td" + z), C(rn(r.avgAtt), "td" + z), C(r.label, "td" + z)], 22); });
+  m.add([C("", "tot"), C("Team", "tot"), C(t.scoredCount || 0, "tot"), C(t.workingCount || 0, "tot"), C((t.scoredCount || 0) - (t.workingCount || 0), "tot"), C(Math.round(t.workPct || 0) + "%", "tot"), C("", "tot"), C("", "tot"), C("", "tot"), C(t.label || "", "tot")], 22);
+  m.gap();
+  m.span("Top members across the team", "h2", 24);
+  m.add([C("#", "th"), C("Name", "th", { span: 2 }), C("Committee", "th", { span: 2 }), C("Total", "th")], 26);
+  top.forEach((r, i) => { const z = i % 2 ? "2" : ""; m.add([C(i + 1, "td" + z), C(r.name, "nm" + z, { span: 2, rtl: isAr(r.name) }), C(r.committee, "td" + z, { span: 2, rtl: isAr(r.committee) }), C(rn(r.total), "td" + z)], 22); });
+  if (!top.length) m.span("No members yet.", "text", 22);
+  m.gap();
+  m.span("Board decisions", "h2", 24);
+  m.add([C("Date", "th", { span: 2 }), C("Title", "th", { span: 2 }), C("Decision", "th", { span: 3 }), C("Basis", "th", { span: 3 })], 26);
+  d.decisions.slice(0, 6).forEach((x, i) => { const z = i % 2 ? "2" : ""; m.add([C(x.date, "td" + z, { span: 2 }), C(x.title, "nm" + z, { span: 2, rtl: isAr(x.title) }), C(x.decision, "td" + z, { span: 3, rtl: isAr(x.decision) }), C(x.basis, "td" + z, { span: 3, rtl: isAr(x.basis) })], 22); });
+  if (!d.decisions.length) m.span("No decisions logged.", "text", 22);
+  sigRow(m, ["Chairman", "Vice Chairman", "Board"], [3, 3, 2]);
+  return m;
+}
+
+// ---- 1. HTML preview / print ----
+function modelHtml(m) {
+  const tot = sum(m.widths), cover = {}, start = {};
+  m.merges.forEach(g => { start[g[0] + "," + g[1]] = g; for (let r = g[0]; r <= g[2]; r++) for (let c = g[1]; c <= g[3]; c++) if (r !== g[0] || c !== g[1]) cover[r + "," + c] = 1; });
+  return '<section class="sheet"><table class="x"><colgroup>' + m.widths.map(w => '<col style="width:' + (w / tot * 100).toFixed(2) + '%">').join("") + "</colgroup>" + m.rows.map((row, r) => '<tr style="height:' + Math.round(row.h * 4 / 3) + 'px">' + row.cells.map((cl, c) => {
+    if (cover[r + "," + c]) return ""; const g = start[r + "," + c];
+    return '<td class="x-' + cl.s + '"' + (g ? ' colspan="' + (g[3] - g[1] + 1) + '"' : "") + (cl.rtl ? ' dir="rtl"' : "") + ">" + esc(cl.v) + "</td>";
+  }).join("") + "</tr>").join("") + "</table></section>";
+}
+
+// ---- 2. real .xlsx (own writer: no libraries, works offline) ----
+const crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcT[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {      // files: [[name, string]] -> Uint8Array (a valid zip, entries stored uncompressed)
+  const enc = new TextEncoder(), parts = [], cd = []; let off = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  files.forEach(f => {
+    const nb = enc.encode(f[0]), db = enc.encode(f[1]), crc = crc32(db);
+    const lh = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x5D4A), u32(crc), u32(db.length), u32(db.length), u16(nb.length), u16(0));
+    parts.push(new Uint8Array(lh), nb, db); cd.push({ nb: nb, crc: crc, len: db.length, off: off }); off += lh.length + nb.length + db.length;
+  });
+  let cdLen = 0;
+  cd.forEach(e => { const h = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x5D4A), u32(e.crc), u32(e.len), u32(e.len), u16(e.nb.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(e.off)); parts.push(new Uint8Array(h), e.nb); cdLen += h.length + e.nb.length; });
+  parts.push(new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(cd.length), u16(cd.length), u32(cdLen), u32(off), u16(0))));
+  let total = 0; parts.forEach(p => { total += p.length; }); const out = new Uint8Array(total); let o = 0; parts.forEach(p => { out.set(p, o); o += p.length; }); return out;
+}
+const xe = s => String(s == null ? "" : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const colL = i => { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+const BD_XML = { none: "<border><left/><right/><top/><bottom/><diagonal/></border>",
+  grid: "<border>" + ["left", "right", "top", "bottom"].map(k => "<" + k + ' style="thin"><color rgb="FF' + LINEC + '"/></' + k + ">").join("") + "<diagonal/></border>",
+  bottom: '<border><left/><right/><top/><bottom style="medium"><color rgb="FF' + NAVY + '"/></bottom><diagonal/></border>',
+  top: '<border><left/><right/><top style="thin"><color rgb="FF' + NAVY + '"/></top><bottom/><diagonal/></border>' };
+function sheetNames(models) {
+  const seen = {};
+  return models.map((m, i) => { let n = String(m.name || "Sheet" + (i + 1)).replace(/[\[\]:*?\/\\]/g, "-").trim().slice(0, 31) || "Sheet" + (i + 1), k = n, j = 2; while (seen[k.toLowerCase()]) { const suf = " (" + j++ + ")"; k = n.slice(0, 31 - suf.length) + suf; } seen[k.toLowerCase()] = 1; return k; });
+}
+function buildXlsx(models) {
+  const fonts = ['<font><sz val="12"/><color rgb="FF' + NAVY + '"/><name val="Arial"/><family val="2"/></font>'], fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'], borders = [BD_XML.none], xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
+  const idx = (a, k) => { let i = a.indexOf(k); if (i < 0) { a.push(k); i = a.length - 1; } return i; };
+  const xfFor = (sk, rtl) => { const s = STY[sk] || STY.blank;
+    const f = idx(fonts, "<font>" + (s.b ? "<b/>" : "") + '<sz val="' + s.sz + '"/><color rgb="FF' + s.fg + '"/><name val="Arial"/><family val="2"/></font>'), fl = idx(fills, '<fill><patternFill patternType="solid"><fgColor rgb="FF' + s.bg + '"/><bgColor indexed="64"/></patternFill></fill>'), bd = idx(borders, BD_XML[s.bd]);
+    return idx(xfs, '<xf numFmtId="0" fontId="' + f + '" fillId="' + fl + '" borderId="' + bd + '" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="' + s.h + '" vertical="center"' + (s.wrap ? ' wrapText="1"' : "") + (rtl ? ' readingOrder="2"' : "") + "/></xf>"); };
+  const names = sheetNames(models);
+  const sheets = models.map((m, si) => {
+    const rowsXml = m.rows.map((row, r) => '<row r="' + (r + 1) + '" ht="' + row.h + '" customHeight="1">' + row.cells.map((cl, c) => {
+      const ref = colL(c) + (r + 1), s = xfFor(cl.s, cl.rtl);
+      if (cl.v === "" || cl.v == null) return '<c r="' + ref + '" s="' + s + '"/>';
+      if (typeof cl.v === "number" && isFinite(cl.v)) return '<c r="' + ref + '" s="' + s + '"><v>' + cl.v + "</v></c>";
+      return '<c r="' + ref + '" s="' + s + '" t="inlineStr"><is><t xml:space="preserve">' + xe(cl.v) + "</t></is></c>";
+    }).join("") + "</row>").join("");
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView showGridLines="0" workbookViewId="0"' + (si === 0 ? ' tabSelected="1"' : "") + '/></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols>' + m.widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + (w + 2) + '" customWidth="1"/>').join("") + "</cols><sheetData>" + rowsXml + "</sheetData>" +
+      (m.merges.length ? '<mergeCells count="' + m.merges.length + '">' + m.merges.map(g => '<mergeCell ref="' + colL(g[1]) + (g[0] + 1) + ":" + colL(g[3]) + (g[2] + 1) + '"/>').join("") + "</mergeCells>" : "") + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
+  });
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="' + fonts.length + '">' + fonts.join("") + '</fonts><fills count="' + fills.length + '">' + fills.join("") + '</fills><borders count="' + borders.length + '">' + borders.join("") + '</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="' + xfs.length + '">' + xfs.join("") + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const files = [["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + models.map((m, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join("") + "</Types>"],
+    ["_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ["xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + names.map((n, i) => '<sheet name="' + xe(n) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join("") + "</sheets></workbook>"],
+    ["xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + models.map((m, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join("") + '<Relationship Id="rId' + (models.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ["xl/styles.xml", styles]].concat(sheets.map((x, i) => ["xl/worksheets/sheet" + (i + 1) + ".xml", x]));
+  return zipStore(files);
+}
+
+// ---- 3. native Google Sheet (Google Sheets API, OAuth token from Google Identity Services) ----
+const rgb = hex => ({ red: parseInt(hex.slice(0, 2), 16) / 255, green: parseInt(hex.slice(2, 4), 16) / 255, blue: parseInt(hex.slice(4, 6), 16) / 255 });
+const gBorder = (st, hex, style) => ({ style: style || "SOLID", color: rgb(hex) });
+function gCell(cl) {
+  const s = STY[cl.s] || STY.blank, fmtObj = { backgroundColor: rgb(s.bg), horizontalAlignment: s.h.toUpperCase(), verticalAlignment: "MIDDLE", wrapStrategy: s.wrap ? "WRAP" : "OVERFLOW_CELL", textDirection: cl.rtl ? "RIGHT_TO_LEFT" : "LEFT_TO_RIGHT", textFormat: { foregroundColor: rgb(s.fg), fontFamily: "Arial", fontSize: s.sz, bold: !!s.b } };
+  if (s.bd === "grid") fmtObj.borders = { top: gBorder(0, LINEC), bottom: gBorder(0, LINEC), left: gBorder(0, LINEC), right: gBorder(0, LINEC) };
+  if (s.bd === "bottom") fmtObj.borders = { bottom: gBorder(0, NAVY, "SOLID_MEDIUM") };
+  if (s.bd === "top") fmtObj.borders = { top: gBorder(0, NAVY) };
+  const out = { userEnteredFormat: fmtObj };
+  if (cl.v !== "" && cl.v != null) out.userEnteredValue = (typeof cl.v === "number" && isFinite(cl.v)) ? { numberValue: cl.v } : { stringValue: String(cl.v) };
+  return out;
+}
+function googleBodies(models, title) {
+  const names = sheetNames(models);
+  const create = { properties: { title: title }, sheets: models.map((m, i) => ({
+    properties: { sheetId: i + 1, title: names[i], gridProperties: { rowCount: m.rows.length + 2, columnCount: m.widths.length, hideGridlines: true } },
+    data: [{ startRow: 0, startColumn: 0, rowData: m.rows.map(r => ({ values: r.cells.map(gCell) })), columnMetadata: m.widths.map(w => ({ pixelSize: Math.round(w * 7.5 + 12) })), rowMetadata: m.rows.map(r => ({ pixelSize: Math.round(r.h * 4 / 3) })) }] })) };
+  const requests = []; models.forEach((m, i) => m.merges.forEach(g => requests.push({ mergeCells: { range: { sheetId: i + 1, startRowIndex: g[0], endRowIndex: g[2] + 1, startColumnIndex: g[1], endColumnIndex: g[3] + 1 }, mergeType: "MERGE_ALL" } })));
+  return { create: create, merge: { requests: requests } };
+}
+let gTok = null, gExp = 0;
+function loadGis() {
+  return new Promise((res, rej) => {
+    if (window.google && window.google.accounts && window.google.accounts.oauth2) return res();
+    const s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.onload = () => res(); s.onerror = () => rej(new Error("Could not load Google sign-in (network blocked?)")); document.head.appendChild(s);
+  });
+}
+function googleToken() {
+  const cid = String(S.settings.googleClientId || "").trim();
+  if (!cid) return Promise.reject(new Error("NO_CLIENT_ID"));
+  if (gTok && Date.now() < gExp) return Promise.resolve(gTok);
+  return loadGis().then(() => new Promise((res, rej) => {
+    const tc = window.google.accounts.oauth2.initTokenClient({ client_id: cid, scope: "https://www.googleapis.com/auth/drive.file",
+      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error)); gTok = r.access_token; gExp = Date.now() + (num(r.expires_in) || 3000) * 1000 - 60000; res(gTok); },
+      error_callback: e => rej(new Error((e && (e.message || e.type)) || "Google sign-in was cancelled")) });
+    tc.requestAccessToken({ prompt: gTok ? "" : "consent" });
+  }));
+}
+function gFetch(url, tok, body) {
+  return fetch(url, { method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok) throw new Error((j.error && j.error.message) || ("Google returned HTTP " + r.status)); return j; }));
+}
+function createGoogleSheet(models, title) {
+  const b = googleBodies(models, title);
+  return googleToken().then(tok => gFetch("https://sheets.googleapis.com/v4/spreadsheets", tok, b.create).then(sp =>
+    (b.merge.requests.length ? gFetch("https://sheets.googleapis.com/v4/spreadsheets/" + sp.spreadsheetId + ":batchUpdate", tok, b.merge) : Promise.resolve()).then(() => sp)));
+}
+function info(title, html) {
+  const m = $("#modal"); m.innerHTML = '<div class="m-card"><h3 class="disp" style="font-size:20px">' + esc(title) + "</h3>" + html + '<div class="m-actions"><button type="button" class="btn" data-act="mclose">OK</button></div></div>'; m.classList.remove("hidden");
+}
+const GSETUP = '<p>A native Google Sheet needs a one-time Google setup (an admin does this once):</p><ol style="padding-left:18px;line-height:1.6"><li>Open <b>console.cloud.google.com</b>, create or pick a project, and enable the <b>Google Sheets API</b>.</li><li>APIs &amp; Services \u2192 Credentials \u2192 <b>Create OAuth client ID</b> (type: Web application). Add this app\u2019s address under <i>Authorized JavaScript origins</i> (it must be https, or http://localhost).</li><li>Copy the Client ID and paste it in <b>Access \u2192 Google Sheets setup</b>.</li></ol><p class="meta">Until then, use <b>Download Excel</b>: it is a real formatted spreadsheet \u2014 upload it to Google Drive and open it with Google Sheets.</p>';
+
+// ---- sheet flow ----
+let sheetCache = null;
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: mime }), url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+/** kind: committee | team | pack (every committee + team). Returns false when not allowed. */
+function prepareSheets(kind, cn, termId) {
+  if (!canSee("sheets")) { deny(); return false; }
+  if (kind !== "committee" && (myScope() || !canSee("team"))) { deny(); return false; }
+  if (kind === "committee" && myScope() && cn !== myScope()) { deny(); return false; }
+  const d = sheetData(termId); if (!d) { toast("That term was not found."); return false; }
+  const models = kind === "committee" ? [modelCommittee(d, cn)] : kind === "team" ? [modelTeam(d)] : [modelTeam(d)].concat(d.commRows.map(c => modelCommittee(d, c.committee)));
+  const label = kind === "committee" ? "Committee sheet \u00B7 " + cn : kind === "team" ? "Team sheet" : "Full pack";
+  sheetCache = { models: models, label: label, file: "REK-" + (kind === "committee" ? cn : kind === "team" ? "Team" : "Full-pack").replace(/[^\w\u0600-\u06FF-]+/g, "_") + "-" + todayStr(), title: "Roh El Kheer \u2014 " + label.replace(" \u00B7 ", ": ") + " (" + d.term + ", " + todayStr() + ")" };
+  return true;
+}
+function openSheet(kind, cn, termId) {
+  if (!prepareSheets(kind, cn, termId)) return;
+  $("#sheetTitle").textContent = sheetCache.label; $("#sheetPages").innerHTML = sheetCache.models.map(modelHtml).join(""); $("#sheetOverlay").classList.remove("hidden");
+}
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+function downloadXlsx() { if (sheetCache) downloadFile(sheetCache.file + ".xlsx", buildXlsx(sheetCache.models), XLSX_MIME); }
+function googleSheetNow() {
+  if (!sheetCache) return Promise.resolve();
+  toast("Creating your Google Sheet\u2026");
+  return createGoogleSheet(sheetCache.models, sheetCache.title).then(sp => { info("Google Sheet created", '<p>Your sheet is ready in your Google Drive.</p><p><a href="' + esc(sp.spreadsheetUrl) + '" target="_blank" rel="noopener" style="color:var(--acc);font-weight:600">Open the Google Sheet</a></p>'); return sp; })
+    .catch(e => { if (e.message === "NO_CLIENT_ID") info("Google Sheets setup needed", GSETUP); else info("Could not create the Google Sheet", "<p>" + esc(e.message) + "</p><p class=\"meta\">You can still use Download Excel and open it in Google Sheets.</p>"); });
+}
+function vSheets() {
+  const arch = arr(S.archives).sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt))), scoped = !!myScope(), full = canSee("team") && !scoped;
+  const kind = full ? S.sel.sheetKind : "committee", term = (S.sel.sheetTerm === "current" || S.archives[S.sel.sheetTerm]) ? S.sel.sheetTerm : "current";
+  const cl = commOpts(); if (!S.sel.sheetComm || cl.indexOf(S.sel.sheetComm) < 0) S.sel.sheetComm = cl[0] || "";
+  const gset = String(S.settings.googleClientId || "").trim();
+  return '<div class="row"><h2 class="disp">Sheets</h2></div><div class="card"><p class="meta" style="margin-top:0">Performance sheets in navy &amp; white. Create a <b>Google Sheet</b>, download a formatted <b>Excel</b> workbook, or <b>print</b> from the preview.</p>' +
+    '<label class="meta">Term</label><br><select class="field" style="max-width:340px" data-sel="sheetTerm"><option value="current"' + (term === "current" ? " selected" : "") + ">" + esc((S.settings.termName || "Current term") + " (live)") + "</option>" + arch.map(a => '<option value="' + a.id + '"' + (term === a.id ? " selected" : "") + ">" + esc((a.termName || "Archived") + " \u2014 closed " + (a.closedAt || "")) + "</option>").join("") + "</select><br><br>" +
+    (full ? '<label class="meta">Sheet</label><br><select class="field" style="max-width:340px" data-sel="sheetKind"><option value="committee"' + (kind === "committee" ? " selected" : "") + '>One committee</option><option value="team"' + (kind === "team" ? " selected" : "") + '>Team overall</option><option value="pack"' + (kind === "pack" ? " selected" : "") + ">Full workbook (team + every committee)</option></select><br><br>" : "") +
+    (kind === "committee" ? '<label class="meta">Committee</label><br>' + (scoped ? '<span class="pill">' + esc(cl[0]) + "</span>" : '<select class="field" style="max-width:340px" data-sel="sheetComm">' + cl.map(c => '<option value="' + esc(c) + '"' + (c === S.sel.sheetComm ? " selected" : "") + ">" + esc(c) + "</option>").join("") + "</select>") + "<br><br>" : "") +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="sheetGoogle">Create Google Sheet</button><button class="btn ghost" data-act="sheetXlsx">Download Excel (.xlsx)</button><button class="btn ghost" data-act="previewSheet">Preview / Print</button></div>' +
+    (gset ? "" : '<p class="meta" style="margin-bottom:0">Google Sheet creation is not set up yet' + (S.user.role === "admin" ? " \u2014 see Access \u2192 Google Sheets setup." : " \u2014 ask an admin.") + " Excel download works now.</p>") + "</div>" +
+    (arch.length ? '<div class="card"><h3 class="disp">Archived terms</h3><table><tbody>' + arch.map(a => "<tr><td><b>" + nm(a.termName) + '</b></td><td class="meta">closed ' + esc(a.closedAt) + " by " + esc(a.closedBy) + "</td></tr>").join("") + "</tbody></table></div>" : "");
+}
+// ================================================================
+// Access panel (admin only) — passkeys, feature controls, data actions
+// ================================================================
+const randKey = () => { const al = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", b = new Uint8Array(10); (window.crypto || window.msCrypto).getRandomValues(b); return Array.from(b).map(x => al[x % al.length]).join(""); };
+function vAccess() {
+  const pk = Object.keys(S.passkeys).sort(), aud = arr(S.audit).sort((a, b) => num(b.ts) - num(a.ts)).slice(0, 40);
+  return '<div class="row"><h2 class="disp">Access</h2></div>' +
+    '<div class="card"><div class="row" style="margin-bottom:6px"><h3 class="disp" style="margin:0">Passkey IDs</h3><button class="btn sm" data-act="addPasskey">+ Add passkey</button></div><div class="tbl-wrap"><table><thead><tr><th>Passkey ID</th><th>Name</th><th>Role</th><th>Access</th><th></th></tr></thead><tbody>' +
+    pk.map(id => { const p = S.passkeys[id], u = { role: p.role, committee: p.committee }; return "<tr><td><b>" + esc(id) + (id === "TRYME1" ? ' <span class="pill">' + (bootstrapOpen() ? "bootstrap" : "disabled") + "</span>" : "") + "</b></td><td>" + nm(p.name) + "</td><td>" + esc(roleLabel(u)) + "</td><td>" + (p.role === "admin" ? '<span class="meta">Full access</span>' : '<span class="pill">' + (p.permissions ? "Custom" : "Role defaults") + '</span> <button class="link" data-act="editAccess" data-id="' + esc(id) + '">Edit</button>' + (p.permissions ? ' <button class="link" data-act="resetAccess" data-id="' + esc(id) + '">Reset</button>' : "")) + '</td><td><button class="link red" data-act="delPasskey" data-id="' + esc(id) + '">Remove</button></td></tr>'; }).join("") + "</tbody></table></div>" +
+    '<p class="meta">Passkeys are stored in Firebase exactly like rek-tracker, so anyone who can read your database can read them. Treat this as an app-level convenience, not strong security.</p></div>' +
+    '<div class="card"><h3 class="disp">Term &amp; committees</h3><label class="meta">Term name (shown on sheets)</label><input class="field" style="max-width:340px" data-setting="termName" value="' + esc(S.settings.termName || "") + '" placeholder="e.g. Fall 2026"><br><br><label class="meta">Committees (comma-separated)</label><input class="field" style="max-width:340px" data-setting="committees" value="' + esc(S.settings.committees || DEF_COMMITTEES.join(", ")) + '"></div>' +
+    '<div class="card"><h3 class="disp">Google Sheets setup</h3><label class="meta">Google OAuth Client ID</label><input class="field" style="max-width:520px" data-setting="googleClientId" value="' + esc(S.settings.googleClientId || "") + '" placeholder="123456789-abc.apps.googleusercontent.com"><p class="meta">Needed only for the <b>Create Google Sheet</b> button. Google Cloud console \u2192 enable the Google Sheets API \u2192 Credentials \u2192 Create OAuth client ID (Web application) \u2192 add this app\u2019s https address as an authorized JavaScript origin \u2192 paste the Client ID here. It is not a secret. Excel download works without it.</p></div>' +
+    '<div class="card"><h3 class="disp">Data actions</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="exportJson">Export backup (JSON)</button><label class="btn ghost" style="display:inline-flex;align-items:center">Import backup<input type="file" id="importFile" accept="application/json" class="hidden"></label><button class="btn danger" data-act="closeTerm">Close term &amp; archive</button><button class="btn danger" data-act="forgetDevice">Forget this device</button><button class="btn danger" data-act="resetFresh">Reset to fresh start</button></div>' +
+    '<p class="meta">All data lives in Firebase, not on this device. Cohort assignments are tied to passkeys and are not included in backups. \u201CForget this device\u201D only clears the saved passkey. \u201CClose term\u201D saves the final scores to the archive (printable later from Sheets), downloads a backup, then clears tasks, events, records, bonuses and decisions. Members, passkeys and rules stay.</p></div>' +
+    '<div class="card"><h3 class="disp">Recent activity</h3>' + (aud.length ? '<div class="tbl-wrap"><table><tbody>' + aud.map(a => "<tr><td class=\"meta\" style=\"white-space:nowrap\">" + (a.ts ? new Date(a.ts).toLocaleString() : "") + "</td><td>" + esc(a.by) + "</td><td>" + esc(a.text) + "</td></tr>").join("") + "</tbody></table></div>" : '<div class="empty">Nothing yet.</div>') + "</div>";
+}
+function addPasskey() {
+  modal("Add passkey", [{ n: "id", l: "Passkey ID (4-64 letters, numbers, - or _)", req: true }, { html: '<button type="button" class="link" data-act="genKey">Generate a random ID</button>' }, { n: "name", l: "Name", req: true }, { n: "role", l: "Role", t: "select", o: Object.keys(ROLES).map(k => [k, ROLES[k]]), v: "hr" }, { n: "committee", l: "Committee (Head / Vice Head only)", t: "select", o: committees(), v: committees()[0] }], f => {
+    const id = f.id.trim();
+    if (!/^[A-Za-z0-9_-]{4,64}$/.test(id)) { toast("Passkey ID must be 4-64 letters, numbers, - or _."); return false; }
+    if (S.passkeys[id]) { toast("That passkey ID already exists."); return false; }
+    const rec = { name: f.name.trim(), role: f.role }; if (SCOPED.indexOf(f.role) >= 0) rec.committee = f.committee;
+    W(R("passkeys/" + id).set(rec)).then(() => { log("Added passkey " + id + " (" + f.role + ")"); if (S.user && S.user.id === "TRYME1" && f.role === "admin") alert("Admin passkey created: " + id + "\n\nTRYME1 is now switched off. Sign in with your new passkey."); });
+  });
+}
+function editAccess(id) {
+  const p = S.passkeys[id]; if (!p) return;
+  const cur = effPerms({ role: p.role, permissions: p.permissions });   // prefilled with what this passkey can do right now
+  modal("Panel access \u2014 " + (p.name || id), PANELS.filter(x => x[0] !== "access").map(x => ({ n: x[0], l: x[1], t: "select", o: [["none", "No access"], ["read", "Read only"], ["write", "Read & write"]], v: cur[x[0]] || "none" })).concat([{ html: '<p class="meta">Pre-filled with this person\u2019s current access. Saving sets it explicitly and replaces the role defaults (use Reset to go back).</p>' }]), f => {
+    const perms = {}; PANELS.forEach(x => { if (x[0] !== "access" && f[x[0]] && (f[x[0]] !== "none" || x[0] === "mygroup")) perms[x[0]] = f[x[0]]; });   // My Group "none" is stored explicitly so it stays a deliberate choice
+    W(R("passkeys/" + id + "/permissions").set(Object.keys(perms).length ? perms : { none: "none" })).then(() => log("Access changed for " + id));
+  });
+}
+function delPasskey(id) {
+  if (S.user && id === S.user.id) { alert("You can't remove the passkey you're currently signed in with."); return; }
+  const p = S.passkeys[id]; if (!p) return;
+  if (p.role === "admin" && id !== "TRYME1" && !Object.keys(S.passkeys).some(k => k !== id && k !== "TRYME1" && S.passkeys[k].role === "admin")) { alert("Keep at least one admin passkey."); return; }
+  if (confirm("Remove passkey " + id + "?")) { const up = {}; up["passkeys/" + id] = null; up["assignments/" + id] = null; W(R("").update(up)).then(() => log("Removed passkey " + id)); }
+}
+// cohorts (assignments) are keyed by HR passkey IDs, so they are deliberately NOT part of backups - a backup file must never contain passkeys
+const DATA_KEYS = ["members", "events", "tasks", "taskRecords", "attRecords", "bonuses", "decisions", "rules", "settings", "archives"];
+function exportJson() { const o = { app: "rek-evaluation", exportedAt: new Date().toISOString() }; DATA_KEYS.forEach(k => { o[k] = S[k]; }); downloadFile("rek-evaluation-backup-" + todayStr() + ".json", JSON.stringify(o, null, 2), "application/json"); }
+function importJson(text) {
+  let o; try { o = JSON.parse(text); } catch (e) { toast("That file isn't valid JSON."); return; }
+  if (!o || o.app !== "rek-evaluation") { toast("That isn't a REK evaluation backup."); return; }
+  const up = {}; let n = 0;
+  DATA_KEYS.forEach(k => { const v = o[k]; if (!v || typeof v !== "object") return; Object.keys(v).forEach(id => { up[k + "/" + id] = v[id]; n++; }); });   // only ids present in the file are written; nothing else is touched
+  if (!n) { toast("Nothing to import."); return; }
+  if (confirm("Import " + n + " records? Existing records with the same ids are overwritten; everything else is left alone.")) W(R("").update(up)).then(() => { toast("Imported " + n + " records"); log("Imported backup (" + n + " records)"); });
+}
+function closeTerm() {
+  const c = compute(), name = S.settings.termName || "Current term";
+  if (prompt('Close "' + name + '"?\n\nThe final scores are saved to the archive, a backup file is downloaded, then tasks, events, records, bonuses and decisions are erased. Members, passkeys and rules stay.\n\nType CLOSE to confirm:') !== "CLOSE") return;
+  const snap = { termName: name, closedAt: todayStr(), closedBy: S.user.name, memberRows: c.memberRows, commRows: c.commRows, team: c.team, penalty: c.penalty, decisions: arr(S.decisions).sort((a, b) => String(b.date).localeCompare(String(a.date))), committeeList: committees() };
+  exportJson();
+  W(R("archives").push(snap)).then(() => {
+    const up = {}; ["tasks", "events", "taskRecords", "attRecords", "bonuses", "decisions"].forEach(k => Object.keys(S[k]).forEach(id => { up[k + "/" + id] = null; }));
+    const next = prompt("Name of the NEXT term (optional):", ""); if (next !== null) up["settings/termName"] = next.trim() || null;
+    return W(R("").update(up)).then(() => { log("Closed term " + name); toast("Term archived"); });
+  });
+}
+function resetFresh() {
+  if (prompt("This permanently erases every passkey except TRYME1, all members, tasks, events, records, bonuses and decisions for everyone using this app.\nRules, settings and the term archive are kept.\n\nType RESET to confirm:") !== "RESET") return;
+  const up = {}; ["members", "events", "tasks", "taskRecords", "attRecords", "bonuses", "decisions"].forEach(k => Object.keys(S[k]).forEach(id => { up[k + "/" + id] = null; }));
+  Object.keys(S.passkeys).forEach(id => { if (id !== "TRYME1") up["passkeys/" + id] = null; }); Object.keys(S.assignments).forEach(id => { up["assignments/" + id] = null; });
+  W(R("").update(up)).then(() => toast("Reset done"));
+}
+
+// ================================================================
+// Event wiring
+// ================================================================
+const ACT = {
+  tab: d => { S.tab = d.t; renderAll(); },
+  mclose: () => closeModal(),
+  openSheet: d => { openSheet(d.kind, d.c, "current"); },
+  previewSheet: () => { const full = canSee("team") && !myScope(); openSheet(full ? S.sel.sheetKind : "committee", S.sel.sheetComm, S.sel.sheetTerm); },
+  sheetXlsx: () => { const full = canSee("team") && !myScope(); if (prepareSheets(full ? S.sel.sheetKind : "committee", S.sel.sheetComm, S.sel.sheetTerm)) downloadXlsx(); },
+  sheetGoogle: () => { const full = canSee("team") && !myScope(); if (prepareSheets(full ? S.sel.sheetKind : "committee", S.sel.sheetComm, S.sel.sheetTerm)) googleSheetNow(); },
+  mgTab: d => { S.sel.mgTab = d.t; render(); },
+  pickMgTask: d => { S.sel.mgTask = d.id; render(); },
+  pickMgEvent: d => { S.sel.mgEvent = d.id; render(); },
+  editCohort: d => { if (canWrite("assign")) editCohortModal(d.id); else deny(); },
+  clearCohort: d => { if (confirm("Remove every member from this cohort?")) saveCohort(d.id, []); },
+  distribute: () => distributeUnassigned(),
+  addDecision: () => modal("Board decision", [{ n: "date", l: "Date", t: "date", v: todayStr() }, { n: "title", l: "Title", req: true }, { n: "decision", l: "Decision", t: "textarea" }, { n: "basis", l: "Basis", t: "textarea" }], addDecision),
+  delDecision: d => { if (canWrite("team") && confirm("Remove this decision?")) W(R("decisions/" + d.id).remove()); },
+  addBonus: () => { const ms = visMembers().filter(m => m.committee === currentComm()); if (!ms.length) { toast("No active members in this committee."); return; } modal("Bonus / minus", [{ n: "memberId", l: "Member", t: "select", o: ms.map(m => [m.id, m.name]) }, { n: "points", l: "Points (negative number = minus)", t: "number", req: true }, { n: "reason", l: "Reason (required above " + rules().bonusExplainAbove + " points)", t: "textarea" }], addBonus); },
+  delBonus: d => { if (confirm("Remove this bonus?")) removeBonus(d.id); },
+  addTask: () => modal("Issue task", [{ n: "title", l: "Title", req: true }, { n: "scope", l: "Scope", t: "select", o: scopeOpts() }, { n: "deadline", l: "Deadline", t: "date", v: todayStr() }, { n: "notes", l: "Notes", t: "textarea" }], saveTask),
+  verifyFlag: d => setTaskRec(d.a, d.m, { flagOk: true }),
+  delTask: d => { if (confirm("Delete this task and all of its records?")) deleteItem("task", d.id); },
+  pickTask: d => { S.sel.task = d.id; render(); },
+  addEvent: () => modal("Add event", [{ n: "name", l: "Name", req: true }, { n: "date", l: "Date", t: "date", v: todayStr(), req: true }, { n: "scope", l: "Scope", t: "select", o: scopeOpts() }, { n: "campus", l: "Location", t: "select", o: OPT.campus, v: "on" }], saveEvent),
+  delEvent: d => { if (confirm("Delete this event and all of its records?")) deleteItem("event", d.id); },
+  pickEvent: d => { S.sel.event = d.id; render(); },
+  addMember: () => memberForm(null),
+  editMember: d => memberForm(d.id),
+  resetRules: () => { if (canWrite("rules") && confirm("Reset all rules to the defaults?")) W(R("rules").remove()).then(() => log("Rules reset to defaults")); },
+  genKey: () => { const el = $("#mf_id"); if (el) el.value = randKey(); },
+  addPasskey: () => addPasskey(),
+  editAccess: d => editAccess(d.id),
+  resetAccess: d => { if (confirm("Go back to this role's default access?")) W(R("passkeys/" + d.id + "/permissions").remove()).then(() => log("Access reset for " + d.id)); },
+  delPasskey: d => delPasskey(d.id),
+  exportJson: () => exportJson(), closeTerm: () => closeTerm(), resetFresh: () => resetFresh(),
+  forgetDevice: () => { if (confirm("This signs this device out and forgets its saved passkey. Data in Firebase is not affected. Continue?")) { lsDel(AUTH_KEY); location.reload(); } }
+};
+function memberForm(id) {
+  if (!canWrite("members")) return deny();
+  const m = id ? S.members[id] || {} : {};
+  modal(id ? "Edit member" : "Add member", [{ n: "name", l: "Name", v: m.name, req: true }, { n: "committee", l: "Committee", t: "select", o: commOpts(), v: m.committee || commOpts()[0] }, { n: "roleTitle", l: "Role title", v: m.roleTitle }, { n: "whatsapp", l: "WhatsApp", v: m.whatsapp }, { n: "specialization", l: "Specialization", v: m.specialization }, { n: "gradYear", l: "Graduation year", v: m.gradYear }, { n: "status", l: "Status", t: "select", o: MEMBER_STATUS, v: m.status || "Active" }], f => saveMember(id, f));
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-act]"); if (!a) { if (e.target.id === "modal") closeModal(); return; }
+  if (a.tagName === "SELECT") return;
+  const f = ACT[a.dataset.act]; if (f) f(a.dataset, a, e);
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.act === "commSel") { S.sel.comm = t.value; render(); return; }
+  if (t.dataset && t.dataset.sel) { S.sel[t.dataset.sel] = t.value; render(); return; }
+  if (t.dataset && t.dataset.setting) { if (S.user && S.user.role === "admin") W(R("settings/" + t.dataset.setting).set(t.value.trim() || null)); return; }
+  if (t.id === "importFile") { const file = t.files && t.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => importJson(String(rd.result)); rd.readAsText(file); t.value = ""; return; }
+  if (t.dataset && t.dataset.kind === "rule") {
+    if (!canWrite("rules")) return deny();
+    const v = t.value.trim(), p = t.dataset.path; let val = v === "" ? null : Number(v);
+    if (val !== null && !isFinite(val)) { toast("Rules must be numbers."); return; }
+    if (p === "ediPenalty" && val !== null) val = Math.max(0, Math.min(1, val));
+    W(R("rules/" + p).set(val)).then(() => log("Rule " + p + " = " + val)); return;
+  }
+  if (t.dataset && (t.dataset.kind === "t" || t.dataset.kind === "e") && t.dataset.f) {
+    const v = t.type === "checkbox" ? t.checked : t.value, patch = {}; patch[t.dataset.f] = v;
+    (t.dataset.kind === "t" ? setTaskRec : setAttRec)(t.dataset.a, t.dataset.m, patch);
+  }
+});
+$("#themeBtn").addEventListener("click", () => { const d = document.documentElement.classList.toggle("dark"); try { localStorage.setItem("rekev-theme", d ? "dark" : "light"); } catch (e) {} });
+$("#shPrint").addEventListener("click", () => window.print());
+$("#shClose").addEventListener("click", () => { $("#sheetOverlay").classList.add("hidden"); $("#sheetPages").innerHTML = ""; });
+$("#shXlsx").addEventListener("click", () => downloadXlsx());
+$("#shGoogle").addEventListener("click", () => googleSheetNow());
+
+
+// ================================================================
+// Look & feel: palette + Game mode (pixel arcade layout, same toggle as Thinksomnia). Layout never touches palette colours.
+// ================================================================
+const UI_KEY = "rekev-ui", UI_DEF = { pal: "classic", layout: "std", icons: "on" };
+let UI = Object.assign({}, UI_DEF); try { Object.assign(UI, JSON.parse(lsGet(UI_KEY) || "{}")); } catch (e) {}
+if (UI.pal === "greek") UI.pal = "navygold";   // palette was renamed
+const PALETTES = [
+  ["classic", "Classic", "Navy & slate, light or dark", ["#0F172A", "#1E3A8A", "#F8FAFC", "#16A34A"]],
+  ["olive", "Off-white & dark green", "Warm paper, deep green", ["#1E4A38", "#2D6A4F", "#F3F0E6", "#FBF9F2"]],
+  ["navygold", "Navy, gold & white", "Deep navy with gold trim", ["#0B2559", "#C9A227", "#FFFFFF", "#F4F5FA"]],
+  ["amber", "Charcoal & amber", "Warm charcoal with amber accents", ["#26282B", "#F59E0B", "#F4F3F0", "#FFFFFF"]]
+];
+function gm() { return document.documentElement.classList.contains("gm"); }
+function applyUI() {
+  const h = document.documentElement;
+  h.setAttribute("data-pal", UI.pal); h.classList.toggle("gm", UI.layout === "gm");
+  h.classList.toggle("dark", lsGet("rekev-theme") === "dark");
+  const b = $("#gameModeBtn"); if (b) b.setAttribute("aria-pressed", UI.layout === "gm" ? "true" : "false");
+}
+// ---- Pixel icons on the panel tabs (game mode). 8x8 maps, '#' = pixel, drawn in the tab's text colour ----
+const ICONS = {
+  trophy: ["########", "#.####.#", "#.####.#", ".######.", "..####..", "...##...", "...##...", "..####.."],
+  shield: ["########", "#......#", "#......#", "#......#", ".#....#.", "..#..#..", "...##...", "........"],
+  heart: [".##..##.", "########", "########", "########", ".######.", "..####..", "...##...", "........"],
+  flag: ["#.......", "####....", "#####...", "######..", "#####...", "####....", "#.......", "#......."],
+  scroll: [".######.", "#......#", "#.####.#", "#......#", "#.####.#", "#......#", "#.####.#", ".######."],
+  star: ["...##...", "...##...", "########", ".######.", "..####..", ".##..##.", ".#....#.", "........"],
+  face: ["..####..", ".######.", ".#.##.#.", ".######.", "..####..", ".######.", "########", "########"],
+  book: [".#####..", "#....##.", "#.##.#.#", "#....#.#", "#.##.#.#", "#....#.#", "#....##.", ".#####.."],
+  chest: ["..####..", ".#....#.", "########", "#......#", "###..###", "#......#", "#......#", "########"],
+  key: [".####...", "#....#..", "#....#..", ".####...", "..#.....", "..###...", "..#.....", "..###..."]
+};
+const TAB_ICON = { team: "trophy", committee: "shield", mygroup: "heart", assign: "flag", tasks: "scroll", att: "star", members: "face", rules: "book", sheets: "chest", access: "key" };
+function pxIcon(name) {
+  const g = ICONS[name]; if (!g) return "";
+  let r = ""; g.forEach((row, y) => { for (let x = 0; x < 8; x++) if (row[x] === "#") r += '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>'; });
+  return '<svg class="pxi" viewBox="0 0 8 8" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">' + r + "</svg>";
+}
+function gmIcons() { return gm() && UI.icons !== "off"; }
+function applyHdr() { const min = document.documentElement.classList.contains("hdr-min"), b = $("#hdrArrow"); if (b) { b.setAttribute("aria-expanded", min ? "false" : "true"); b.title = min ? "Show buttons" : "Hide buttons"; } }
+let lastLevel = null;
+function updateXp() {            // XP = points from completed task/attendance evaluations of the members this user can see; a level every 50 XP
+  const el = $("#xpHud"); if (!el || !S.user) return;
+  let rows = compute().memberRows; const sc = myScope();
+  if (sc) rows = rows.filter(r => r.committee === sc);
+  else if (S.user.role === "hr") { const ids = {}; myCohort().forEach(m => { ids[m.id] = 1; }); rows = rows.filter(r => ids[r.id]); }
+  const xp = Math.max(0, Math.round(rows.reduce((n, r) => n + (Number(r.xpPts) || 0), 0))), lvl = Math.floor(xp / 50) + 1, cur = xp % 50;
+  el.innerHTML = '<span class="xp-lv">LV ' + lvl + '</span><span class="xp-bar"><i style="width:' + (cur / 50 * 100) + '%"></i></span><span class="xp-num">' + xp + " XP</span>";
+  if (gm() && lastLevel !== null && lvl > lastLevel) toast("LEVEL UP! You reached LV " + lvl);
+  lastLevel = lvl;
+}
+function openCustomize() {
+  const seg = (k, opts) => '<div class="seg">' + opts.map(o => '<button type="button" class="segb' + (UI[k] === o[0] ? " on" : "") + '" data-act="uiSet" data-k="' + k + '" data-v="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>";
+  const dark = document.documentElement.classList.contains("dark");
+  $("#modal").innerHTML = '<div class="m-card"><h3 class="disp" style="font-size:20px">Customize</h3>' +
+    '<div class="cust-h">Layout</div>' + seg("layout", [["std", "Standard"], ["gm", "Game mode (pixel)"]]) +
+    '<div class="cust-h">Palette</div><div class="pal-grid">' + PALETTES.map(p => '<button type="button" class="palc' + (UI.pal === p[0] ? " on" : "") + '" data-act="uiSet" data-k="pal" data-v="' + p[0] + '"><span class="chips">' + p[3].map(c => '<i style="background:' + c + '"></i>').join("") + '</span><span><b>' + p[1] + '</b><span class="meta">' + p[2] + "</span></span></button>").join("") + "</div>" +
+    '<div class="cust-h">Light / dark mode</div><div class="seg"><button type="button" class="segb' + (dark ? "" : " on") + '" data-act="uiTheme" data-v="light">Light</button><button type="button" class="segb' + (dark ? " on" : "") + '" data-act="uiTheme" data-v="dark">Dark</button></div>' +
+    '<div class="cust-h">Pixel icons on the panel tabs (Game mode)</div>' + seg("icons", [["on", "On"], ["off", "Off"]]) +
+    '<p class="meta" style="margin-top:14px">Saved on this device only. The layout never changes the palette colours.</p>' +
+    '<div class="m-actions"><button type="button" class="btn ghost" data-act="uiReset">Reset</button><button type="button" class="btn" data-act="mclose">Done</button></div></div>';
+  $("#modal").classList.remove("hidden");
+}
+const customizeOpen = () => !$("#modal").classList.contains("hidden") && !!$("#modal .cust-h");
+function setUI(k, v) { UI[k] = v; lsSet(UI_KEY, JSON.stringify(UI)); applyUI(); if (S.user) renderAll(); if (customizeOpen()) openCustomize(); }
+Object.assign(ACT, {
+  customize: () => openCustomize(), uiSet: d => setUI(d.k, d.v),
+  uiReset: () => { UI = Object.assign({}, UI_DEF); lsSet(UI_KEY, JSON.stringify(UI)); applyUI(); if (S.user) renderAll(); openCustomize(); },
+  uiTheme: d => { try { localStorage.setItem("rekev-theme", d.v); } catch (e) {} applyUI(); openCustomize(); }
+});
+$("#customBtn").addEventListener("click", openCustomize); $("#gateCustom").addEventListener("click", openCustomize);
+$("#gameModeBtn").addEventListener("click", () => { setUI("layout", UI.layout === "gm" ? "std" : "gm"); toast(UI.layout === "gm" ? "Game mode on" : "Classic layout restored"); });
+$("#hdrArrow").addEventListener("click", () => { const min = document.documentElement.classList.toggle("hdr-min"); lsSet("rekev-hdr", min ? "1" : "0"); applyHdr(); });
+applyUI(); applyHdr();
+
+// ---------------- boot ----------------
+$("#sheetCss").textContent = SHEET_CSS;
+seedIfEmpty();
+attemptAutoLogin();
+window.__rek = { UI: () => UI, setUI: setUI, isActive: isActive, myScope: myScope, S: S, compute: compute, rules: rules, scoreTask: scoreTask, scoreAtt: scoreAtt, giniNorm: giniNorm, sheetData: sheetData, modelCommittee: modelCommittee, modelTeam: modelTeam, modelHtml: modelHtml, buildXlsx: buildXlsx, googleBodies: googleBodies, createGoogleSheet: createGoogleSheet, googleSheetNow: googleSheetNow, prepareSheets: prepareSheets, openSheet: openSheet, getSheetCache: () => sheetCache, STY: STY, SHEET_CSS: SHEET_CSS,
+  ACT: ACT, tryAuth: tryAuth, effPerms: effPerms, canWrite: canWrite, canMark: canMark, canQC: canQC, setTaskRec: setTaskRec, setAttRec: setAttRec, saveMember: saveMember, saveTask: saveTask, saveEvent: saveEvent, addBonus: addBonus, deleteItem: deleteItem, saveCohort: saveCohort, distributeUnassigned: distributeUnassigned, myCohort: myCohort, cohortOf: cohortOf, bootstrapOpen: bootstrapOpen, closeTerm: closeTerm, importJson: importJson, renderAll: renderAll, VIEWS: VIEWS, signOut: signOut, committees: committees };
+})();
+</script>
+</body>
+</html>
